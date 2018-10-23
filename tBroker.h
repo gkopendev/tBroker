@@ -134,6 +134,12 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int topic);
 int tBroker_get_subscriber_fd(struct tBroker_subscriber_context *ctx);
 
 /*
+ * @desc For every subscribe call, do this for cleanup.
+ * @note This is NOT Unsubscribe. Only for freeing memory on exit
+ * @arg ctx is the ctx populated from a previous successful subscribe call()
+ */
+void tBroker_subscriber_context_free(struct tBroker_subscriber_context *ctx);
+/*
  * @desc Called by publisher thread
  * @arg topic: which topic to publish
  * @arg buffer: data to be published. It is pointer to data of memory 

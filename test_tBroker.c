@@ -10,8 +10,8 @@
 #include "tBroker.h"
 
 #define BUF_SIZE    512
-#define Q_SIZE      1
-#define LOOP        100000
+#define Q_SIZE      2
+#define LOOP        1000000
 
 #define TOPIC_0 0
 #define TOPIC_1 1
@@ -23,7 +23,7 @@
 #define TOPIC_7 7
 
 uint64_t exit_app = 0;
-struct timespec ts = {0, 1000000L };
+struct timespec ts = {0, 5000000L };
 
 pthread_t   All_topic_pub1, All_topic_pub2, All_topic_pub3;
 void *All_topic_pub_func1(void *par)

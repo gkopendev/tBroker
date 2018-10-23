@@ -56,7 +56,7 @@ struct tBroker_subscriber {
 	/* Indicates how deep into the queue has this subsriber reached */
 	volatile uint32_t tail;
 	/* needed for reference to compare for peek and read calls */
-	int orig_fd;
+	int orig_s_uid;
 };
 
 #endif /* __TBROK_PRIV__ */

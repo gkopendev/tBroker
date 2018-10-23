@@ -10,8 +10,8 @@
 #include "tBroker.h"
 
 #define BUF_SIZE    512
-#define Q_SIZE      1
-#define LOOP        100000
+#define Q_SIZE      2
+#define LOOP        1000000
 
 pthread_t All_topic_sub0, All_topic_sub1, All_topic_sub2, All_topic_sub3, All_topic_sub4, All_topic_sub5;
 void *All_topic_sub0_func(void *); 
@@ -63,7 +63,7 @@ void main(void)
         sprintf(dummy_pub_data, "%d \r\n", times);
     //    tBroker_topic_publish(TOPIC_7, dummy_pub_data);
         times++;
-        usleep(1 * 1000);
+        usleep(5 * 1000);
     }
     
     sleep(5);
@@ -239,6 +239,12 @@ void *All_topic_sub0_func(void *par)
         if (fd_02 > 0) close(fd_02); 
         if (fd_03 > 0) close(fd_03);
         if (epoll_fd > 0) close(epoll_fd);
+        
+        tBroker_subscriber_context_free(fd_00_ctx);
+        tBroker_subscriber_context_free(fd_01_ctx);
+        tBroker_subscriber_context_free(fd_02_ctx);
+        tBroker_subscriber_context_free(fd_03_ctx);
+
         // fclose(fd_00_0); fclose(fd_00_1); fclose(fd_00_2); fclose(fd_00_3);   
         
     }

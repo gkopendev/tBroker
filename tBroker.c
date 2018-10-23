@@ -118,7 +118,7 @@ static pthread_t tBroker_init_th = 0;
 struct tBroker_subscriber_metadata {
 	int id; 
 	int subscriber_fd; 
-	int orig_fd ;
+	int orig_s_uid ;
 //	struct tBroker_subscriber_metadata *next;
 };
 static struct tBroker_subscriber_metadata *all_subs;
@@ -154,7 +154,7 @@ static int del_from_epoll(int *p_epoll, int *p_fd)
 
 /* helper function, use protocol to send fd to an app referenced by client_i */
 static void send_topic_fd_to_a_client(int client_i, int id, 
-				int subscriber_fd, int orig_fd)
+				int subscriber_fd, int orig_s_uid)
 {
         struct iovec    iov[1];
         struct msghdr   msg;
@@ -188,7 +188,7 @@ static void send_topic_fd_to_a_client(int client_i, int id,
         buf[0]='t';buf[1]='o'; buf[2]='p';buf[3]='i'; 
 	buf[4]='c';buf[5]=' '; buf[6]='i';buf[7]='d';
         *(int *)(&(buf[8])) = id;
-        *(int *)(&(buf[12])) = orig_fd;
+        *(int *)(&(buf[12])) = orig_s_uid;
         buf[16] = '\n';
         
         /* Send buf which has ancillary data(subscriber_fd) to the client */
@@ -207,12 +207,12 @@ static void send_topic_fd_to_a_client(int client_i, int id,
 }
 
 /* Send buf which sends ancillary data(subscriber_fd) to all clients */
-static void send_topic_fd_to_clients(int id, int subscriber_fd, int orig_fd)
+static void send_topic_fd_to_clients(int id, int subscriber_fd, int orig_s_uid)
 {
 	int client_i;
 	 
         for (client_i = 0; client_i < num_clients; client_i++)
-        	send_topic_fd_to_a_client(client_i, id, subscriber_fd, orig_fd);	
+        	send_topic_fd_to_a_client(client_i, id, subscriber_fd, orig_s_uid);	
 }
 
 /* 
@@ -222,7 +222,7 @@ static void send_topic_fd_to_clients(int id, int subscriber_fd, int orig_fd)
  */
 static void sock_conn_handler(uint32_t revents, int client_i)
 {
-        int             newfd = -1, orig_fd = -1, nr = 0, r = 0, i;
+        int             newfd = -1, orig_s_uid = -1, nr = 0, r = 0, i;
         int             topic_id;
         uint8_t         buf[32];
         struct iovec    iov[1];
@@ -272,16 +272,16 @@ static void sock_conn_handler(uint32_t revents, int client_i)
                                 /* Grab fd and relay to all clients */
                                 topic_id = *(int *)(&(buf[8]));
                                 newfd = *(int *)CMSG_DATA(cmptr);
-                                orig_fd = *(int *)(&(buf[12]));
+                                orig_s_uid = *(int *)(&(buf[12]));
                                 if ((all_subs) && 
 				    (all_subs_index < MAX_TOTAL_SUBS)) {
 	                        	all_subs[all_subs_index].id = topic_id;
 	                                all_subs[all_subs_index].subscriber_fd = newfd;
-	                                all_subs[all_subs_index].orig_fd = orig_fd;
-					//printf("%d - %d - %d \r\n", topic_id, newfd, orig_fd);
+	                                all_subs[all_subs_index].orig_s_uid = orig_s_uid;
+					//printf("%d - %d - %d \r\n", topic_id, newfd, orig_s_uid);
 	                                all_subs_index++;
                                 }
-				send_topic_fd_to_clients(topic_id, newfd, orig_fd);
+				send_topic_fd_to_clients(topic_id, newfd, orig_s_uid);
                                 break;
                         }
                 }
@@ -335,7 +335,7 @@ static int sock_listen_handler(uint32_t revents)
 			 		send_topic_fd_to_a_client(client_i, 
 						all_subs[i].id, 
 						all_subs[i].subscriber_fd, 
-						all_subs[i].orig_fd);
+						all_subs[i].orig_s_uid);
 			 	}
 			 }
 			/* Add client to our tBroker_init thread epoll */
@@ -620,7 +620,7 @@ topic_create_ret:
 	return ret;
 }
 
-static int __topic_subscribe(int topic, int fd, int orig_fd); /* forward decl */
+static int __topic_subscribe(int topic, int fd, int orig_s_uid); /* forward decl */
 /* handler for any data received from the server. Add subscriber fd to  list */
 static int client_handler(uint32_t revents, int fd)
 {
@@ -631,7 +631,7 @@ static int client_handler(uint32_t revents, int fd)
         static struct cmsghdr   *cmptr = NULL;
         int CONTROLLEN  = CMSG_LEN(sizeof(int));
         int rcv_fd = -1;
-        int orig_fd = -1;
+        int orig_s_uid = -1;
         
         cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
         if (cmptr == NULL) return ret;
@@ -667,8 +667,8 @@ static int client_handler(uint32_t revents, int fd)
                                 /* get the fd and relay to all clients */
                                 topic_id = *(int *)(&(buf[8]));
                                 rcv_fd = *(int *)CMSG_DATA(cmptr);
-                                orig_fd = *(int *)(&(buf[12]));
-                                if (__topic_subscribe(topic_id, rcv_fd, orig_fd)
+                                orig_s_uid = *(int *)(&(buf[12]));
+                                if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid)
 									 < 0) {
                                 	fprintf(stderr, 
 					"topic id %d not added \r\n", topic_id);
@@ -926,7 +926,7 @@ int tBroker_deinit(void)
 }
 
 /* helper function, adds fd to topic subscriber linked list */
-static int __topic_subscribe(int topic, int fd, int orig_fd)
+static int __topic_subscribe(int topic, int fd, int orig_s_uid)
 {
 	int i, ret = -1;
 	struct tBroker_subscriber **p_sub = NULL;
@@ -947,7 +947,7 @@ static int __topic_subscribe(int topic, int fd, int orig_fd)
 		*p_sub = malloc(sizeof(struct tBroker_subscriber));
 		if (*p_sub) {
 			(*p_sub)->fd = fd;
-			(*p_sub)->orig_fd = orig_fd;
+			(*p_sub)->orig_s_uid = orig_s_uid;
 			if (((*p_sub)->fd) < 0) {
 				free(*p_sub);
 				ret = -1;
@@ -1056,18 +1056,8 @@ topic_subscribe_ret:
 	return ctx;
 }
 
-// unsubscribe will need an "unique ID" generated for every subscribe call, 
-// so we can delete subscriptions
-// across multiple apps. Every sub fd gets sent to all apps, so on a subscribe 
-// call we need
-// a unique ID across all apps which can be used to unsubscribe. 
-// This unique ID will get appended to socket message
-// for identity purposes. As the ID has to be unique across broker, 
-// we will need a variable(counter) in topicsSHM
-// with cross process mutex. Will implement when necessary, 
+ 
 // right now it's not really needed.
-
-
 // int topic_unsubscribe(int topic, int handle)
 // {
 // 	int i, ret = -1, found_handle = 0;
@@ -1123,6 +1113,11 @@ int tBroker_get_subscriber_fd(struct tBroker_subscriber_context *ctx)
 {
 	if (ctx) return ctx->fd;
 	else return -1;
+}
+
+void tBroker_subscriber_context_free(struct tBroker_subscriber_context *ctx)
+{
+	if (ctx != NULL) free(ctx);
 }
 
 /* Notify all subscribers across apps about new data */
@@ -1206,7 +1201,7 @@ int tBroker_topic_peek(int topic, struct tBroker_subscriber_context *ctx)
 		pthread_mutex_unlock(&((topics[i].shm)->pub_lock));
 		while (sub)  {
 			/* check handle with original fd number */
-			if (sub->orig_fd == ctx->s_uid) {
+			if (sub->orig_s_uid == ctx->s_uid) {
 				if (sub->tail <= head)
 					ret = (head - sub->tail);
 				else
@@ -1238,7 +1233,7 @@ static int _topic_read(int i, struct tBroker_subscriber_context *ctx,
 	sub = topics[i].first_subscriber;
 	while (sub)  {
 		//printf(".");
-		if (sub->orig_fd == ctx->s_uid) {
+		if (sub->orig_s_uid == ctx->s_uid) {
 			//printf("p \r\n");
 			pthread_mutex_lock(&((topics[i].shm)->pub_lock));
 			head = (topics[i].shm)->head;
