@@ -37,11 +37,15 @@ extern "C" {
  * All apps in tBroker send a connection request(using tBroker_connect). 
  * This connection is used for bidirectional comms between creator thread 
  * and other apps.
- * All apps on connection create a local copy of topic meta data SHM.
+ * All apps on connection create a local copy of topic "meta data" SHM.
+ * 
+ * Publishers and subscribers data transfer is done through topic SHM's(data buffer). 
+ * There is only one copy of it, so it should be deep enough for the slowest 
+ * subscriber to use it.
  *
  * When there is topic_subscribe call an eventfd pair is created. The fd is 
  * passed to creator thread which relays it to all tBroker connected apps.
- * Thus a subscriber linked list is created for every topic in all tBroker connected apps. 
+ * Thus a subscriber linked list is created for every topic in all tBroker apps. 
  * On any topic_publish in any app, all subscribers are notified.
  * The fd's are sent between apps using Unix domain socket & ancillary data
  * http://poincare.matf.bg.ac.rs/~ivana/courses/ps/sistemi_knjige/pomocno/apue/APUE/0201433079/ch17lev1sec4.html
@@ -278,8 +282,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 	                        	all_subs[all_subs_index].id = topic_id;
 	                                all_subs[all_subs_index].subscriber_fd = newfd;
 	                                all_subs[all_subs_index].orig_s_uid = orig_s_uid;
-					//printf("%d - %d - %d \r\n", topic_id, newfd, orig_s_uid);
-	                                all_subs_index++;
+					all_subs_index++;
                                 }
 				send_topic_fd_to_clients(topic_id, newfd, orig_s_uid);
                                 break;
@@ -639,7 +642,7 @@ static int client_handler(uint32_t revents, int fd)
         if (revents & EPOLLIN);
         else return 0;
                 
-         for ( ; ; ) {
+        for ( ; ; ) {
                 iov[0].iov_base = buf+nr;
                 iov[0].iov_len  = sizeof(buf) - nr;
                 msg.msg_iov     = iov;
@@ -668,8 +671,8 @@ static int client_handler(uint32_t revents, int fd)
                                 topic_id = *(int *)(&(buf[8]));
                                 rcv_fd = *(int *)CMSG_DATA(cmptr);
                                 orig_s_uid = *(int *)(&(buf[12]));
-                                if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid)
-									 < 0) {
+                                if (__topic_subscribe(topic_id, 
+					rcv_fd, orig_s_uid) < 0) {
                                 	fprintf(stderr, 
 					"topic id %d not added \r\n", topic_id);
 				}
@@ -775,7 +778,6 @@ void *tBroker_connect_func(void *par)
 int tBroker_connect(void)
 {
 	int i,q,fd,ret=0;
-//	struct topics_info *info_shm;
 	size_t sz = sizeof(struct topics_info);
 	uint64_t ev = 0;
 	
@@ -801,7 +803,6 @@ int tBroker_connect(void)
 			sizeof(struct __topics_info__));
 	}
 	close(fd);
-//	munmap((void*)info_shm, sz);
 	
 	for (i=0; i<num_topics; i++) {
 		/* connect to all the SHM's, you have all topic data access */
@@ -979,46 +980,46 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int topic)
 {
 	int ret = -1,subscriber_fd = -1, i, s_uid = 0;
 	struct iovec    iov[1];
-        struct msghdr   msg;
-        char            buf[32];
+	struct msghdr   msg;
+	char            buf[32];
 	struct tBroker_subscriber_context *ctx = NULL;
         
-        int flags = 0;
-        int CONTROLLEN  = CMSG_LEN(sizeof(int));
-        static struct cmsghdr   *cmptr = NULL;
+	int flags = 0;
+	int CONTROLLEN  = CMSG_LEN(sizeof(int));
+	static struct cmsghdr   *cmptr = NULL;
         
-        pthread_mutex_lock(&tBroker_socket_lock);
+	pthread_mutex_lock(&tBroker_socket_lock);
         
-        for (i=0; i<num_topics; i++) {
+	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
 			break;
 	}
 	
 	if (i==num_topics) goto topic_subscribe_ret;
         
-        cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
-        if (cmptr == NULL) goto  topic_subscribe_ret;
+	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
+	if (cmptr == NULL) goto  topic_subscribe_ret;
         
-        /* pass buf as message on the socket */
-        iov[0].iov_base = buf;  /* one location(buf), only one iov needed */
-        iov[0].iov_len  = 17; 
-        msg.msg_iov     = iov;
-        msg.msg_iovlen  = 1;
-        msg.msg_name    = NULL;
-        msg.msg_namelen = 0;
+	/* pass buf as message on the socket */
+	iov[0].iov_base = buf;  /* one location(buf), only one iov needed */
+	iov[0].iov_len  = 17; 
+	msg.msg_iov     = iov;
+	msg.msg_iovlen  = 1;
+	msg.msg_name    = NULL;
+	msg.msg_namelen = 0;
         
-        /* add ancillary data which is the fd and set SCM_RIGHTS */
-        cmptr->cmsg_level  = SOL_SOCKET;
-        cmptr->cmsg_type   = SCM_RIGHTS;
-        cmptr->cmsg_len    = CONTROLLEN;
-        msg.msg_control    = cmptr;
-        msg.msg_controllen = CONTROLLEN;
+	/* add ancillary data which is the fd and set SCM_RIGHTS */
+	cmptr->cmsg_level  = SOL_SOCKET;
+	cmptr->cmsg_type   = SCM_RIGHTS;
+	cmptr->cmsg_len    = CONTROLLEN;
+	msg.msg_control    = cmptr;
+	msg.msg_controllen = CONTROLLEN;
         
-        /* get an event fd, pass it to tBroker_init socket  */
-        subscriber_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE);
-        *(int *)CMSG_DATA(cmptr) = subscriber_fd;
+	/* get an event fd, pass it to tBroker_init socket  */
+	subscriber_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE);
+	*(int *)CMSG_DATA(cmptr) = subscriber_fd;
         
-        /* 
+	/* 
 	 * populate, buf = 17 bytes = 
 	 * str('topic id') + 4 byte topic id + 4 byte original fd + str('\n') 
 	 */
@@ -1027,24 +1028,24 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int topic)
 	info_main_shm->sub_id_count++;
 	pthread_mutex_unlock(&info_main_shm->sub_id_count_lock);
 
-        buf[0]='t';buf[1]='o'; buf[2]='p';buf[3]='i'; 
+	buf[0]='t';buf[1]='o'; buf[2]='p';buf[3]='i'; 
 	buf[4]='c';buf[5]=' '; buf[6]='i';buf[7]='d';
-        *(int *)(&(buf[8])) = topic;
-        *(int *)(&(buf[12])) = s_uid;
-        buf[16] = '\n';
+	*(int *)(&(buf[8])) = topic;
+	*(int *)(&(buf[12])) = s_uid;
+	buf[16] = '\n';
  
-        flags = fcntl(tBroker_socket, F_GETFL, 0);
-        flags &= ~O_NONBLOCK;
-        fcntl(tBroker_socket, F_SETFL, flags);
+	flags = fcntl(tBroker_socket, F_GETFL, 0);
+	flags &= ~O_NONBLOCK;
+	fcntl(tBroker_socket, F_SETFL, flags);
         
-        sendmsg(tBroker_socket, &msg, 0);
+	sendmsg(tBroker_socket, &msg, 0);
 	ret = subscriber_fd;
         
         //flags = fcntl(tBroker_socket, F_GETFL, 0);
-        flags |= O_NONBLOCK;
-        fcntl(tBroker_socket, F_SETFL, flags);
+	flags |= O_NONBLOCK;
+	fcntl(tBroker_socket, F_SETFL, flags);
         
-        free(cmptr);
+	free(cmptr);
         
 	ctx = malloc(sizeof(struct tBroker_subscriber_context));
 	ctx->fd = ret;
@@ -1217,7 +1218,7 @@ int tBroker_topic_peek(int topic, struct tBroker_subscriber_context *ctx)
 
 /* 
  * copy new published data, will copy the latest  data. Will adjust for 
- * data loss, i.e if data is produced faster than it is consumed 
+ * data loss (move subscriber tail count), if data is consumed is slow 
  */
 static int _topic_read(int i, struct tBroker_subscriber_context *ctx, 
 	void *buffer, uint32_t offset, uint32_t size, int repeat_read)
@@ -1262,7 +1263,7 @@ static int _topic_read(int i, struct tBroker_subscriber_context *ctx,
 						ret = -1;
 						break;
 					} else 
-					sub->tail++;
+						sub->tail++;
 					queued_msgs--;
 				}
 				idx = (sub->tail & (topics[i].queue_size - 1));
@@ -1302,8 +1303,9 @@ static int _topic_read(int i, struct tBroker_subscriber_context *ctx,
 	return ret;
 }
 
-int tBroker_topic_read_partial(int topic, struct tBroker_subscriber_context *ctx, 
-				void *buffer, uint32_t offset, uint32_t size)
+int tBroker_topic_read_partial(int topic, 
+			struct tBroker_subscriber_context *ctx, 
+			void *buffer, uint32_t offset, uint32_t size)
 {
 	int i, ret = -1;
 	for (i=0; i<num_topics; i++) {
@@ -1320,7 +1322,8 @@ int tBroker_topic_read_partial(int topic, struct tBroker_subscriber_context *ctx
 	return ret;
 }
 
-int tBroker_topic_read(int topic, struct tBroker_subscriber_context *ctx, void *buffer)
+int tBroker_topic_read(int topic, 
+		struct tBroker_subscriber_context *ctx, void *buffer)
 {
 	int i, ret = -1;
 	for (i=0; i<num_topics; i++) {

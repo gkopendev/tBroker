@@ -102,7 +102,7 @@ int tBroker_init(void);
  * to subscribe/publish.
  *	
  * @arg topic: unique ID
- * @arg name: name of topic(for readability)
+ * @arg name: name of topic, used for POSIX SHM name.
  * @arg size: sizeof(memory) associated with topic
  * @arg queue_size: Number of buffers for topic data in memory, 
  * 		1 if no buffering needed. Should be in powers of 2
