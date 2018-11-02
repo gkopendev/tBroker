@@ -48,7 +48,7 @@ struct tBroker_topic_SHM {
  */
 struct tBroker_subscriber {
 	/* used for communication between the subscriber and broker */
-	int fd;
+	int32_t fd;
 	/* Next subscriber of this topic in LL. If NULL, last subscriber */
 	struct tBroker_subscriber *next;
 	/* previous subscriber of this topic in LL. If NULL first subscriber */
@@ -56,7 +56,7 @@ struct tBroker_subscriber {
 	/* Indicates how deep into the queue has this subsriber reached */
 	volatile uint32_t tail;
 	/* needed for reference to compare for peek and read calls */
-	int orig_s_uid;
+	int32_t orig_s_uid;
 };
 
 #endif /* __TBROK_PRIV__ */
