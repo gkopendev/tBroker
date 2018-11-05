@@ -169,7 +169,7 @@ static int add_to_epoll(int *p_epoll, int *p_fd)
 	event.data.fd = *p_fd;
 	ret = epoll_ctl (*p_epoll, EPOLL_CTL_ADD, event.data.fd, &event);
 	if (ret < 0)
-	        fprintf(stderr, "epoll err - %s", strerror(errno));
+		fprintf(stderr, "epoll err - %s", strerror(errno));
 	return ret;
 }
 
@@ -185,6 +185,10 @@ static int del_from_epoll(int *p_epoll, int *p_fd)
 		fprintf(stderr, "epoll err - %s", strerror(errno));
 	return ret;
 }
+
+/*****************************************************************************/
+/****************************** TBROKER SERVER *******************************/
+/*****************************************************************************/
 
 /* helper function, use protocol to send fd to an app referenced by client_i */
 static void send_topic_fd_to_a_client(int client_i, int32_t id, 
@@ -806,6 +810,11 @@ topic_create_ret:
 	return ret;
 }
 
+
+/*****************************************************************************/
+/****************************** TBROKER CLIENTS ******************************/
+/*****************************************************************************/
+
 /* forward declarations */
 static int __topic_subscribe(int32_t topic, int32_t fd, int32_t orig_s_uid); 
 static int __topic_unsubscribe(int32_t topic, int32_t orig_s_uid);
@@ -1305,7 +1314,7 @@ static void send_sub_fd_ack(void)
 	flags = fcntl(tBroker_socket, F_GETFL, 0);
 	flags &= ~O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
-        sendmsg(tBroker_socket, &msg, 0);
+	sendmsg(tBroker_socket, &msg, 0);
 	flags |= O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
 }
@@ -1395,7 +1404,7 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	fcntl(tBroker_socket, F_SETFL, flags);
 		
 	sendmsg(tBroker_socket, &msg, 0);
-	
+			
 	flags |= O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
 		
