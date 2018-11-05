@@ -147,11 +147,11 @@ static volatile int all_subs_index = 0;
  * 	connected clients. Thus every client knows about all subscribe requests.
  * 	This is necessary as the client may wish to publish on that topic.
  * 3. Receive subscribe ACKS from all clients and ACK the client which requested
- * 4. Receive unsubscribe requests from 'a' client for a topic and relay it to all
- * 	connected clients.
+ * 4. Receive unsubscribe requests from 'a' client for a topic and relay it to
+ * 	all connected clients.
  * 
  * Every app which call tBroker_connect is a tbroker client.
- * All UDS comms between server <--> client is done in a simple protocol of 17 data bytes.
+ * UDS comms between server <--> client is a simple protocol of 17 data bytes.
  */
 
 #define CLIENT_CONNECTED_RET_CODE 	100
@@ -182,7 +182,7 @@ static int del_from_epoll(int *p_epoll, int *p_fd)
 	event.data.fd = *p_fd;
 	ret = epoll_ctl (*p_epoll, EPOLL_CTL_DEL, event.data.fd, &event);
 	if (ret < 0)
-	        fprintf(stderr, "epoll err - %s", strerror(errno));
+		fprintf(stderr, "epoll err - %s", strerror(errno));
 	return ret;
 }
 
@@ -190,55 +190,55 @@ static int del_from_epoll(int *p_epoll, int *p_fd)
 static void send_topic_fd_to_a_client(int client_i, int32_t id, 
 				int32_t subscriber_fd, int32_t orig_s_uid)
 {
-        /* server ---> client */
+	/* server ---> client */
 	struct iovec    iov[1];
-        struct msghdr   msg;
-        char            buf[32];
-        int flags = 0;
-        int CONTROLLEN  = CMSG_LEN(sizeof(int));
-        static struct cmsghdr   *cmptr = NULL;
-        cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
-        if (cmptr == NULL) return;
-        
-        /* pass buf as message on the socket */
-        iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
-        iov[0].iov_len  = 17; 
-        msg.msg_iov     = iov;
-        msg.msg_iovlen  = 1;
-        msg.msg_name    = NULL;
-        msg.msg_namelen = 0;
-        
-        /* add ancillary data which is the fd and set SCM_RIGHTS */
-        cmptr->cmsg_level  = SOL_SOCKET;
-        cmptr->cmsg_type   = SCM_RIGHTS;
-        cmptr->cmsg_len    = CONTROLLEN;
-        msg.msg_control    = cmptr;
-        msg.msg_controllen = CONTROLLEN;
-        *(int32_t *)CMSG_DATA(cmptr) = subscriber_fd;
-        
-        /* 
+	struct msghdr   msg;
+	char            buf[32];
+	int flags = 0;
+	int CONTROLLEN  = CMSG_LEN(sizeof(int));
+	static struct cmsghdr   *cmptr = NULL;
+	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
+	if (cmptr == NULL) return;
+		
+	/* pass buf as message on the socket */
+	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
+	iov[0].iov_len  = 17; 
+	msg.msg_iov     = iov;
+	msg.msg_iovlen  = 1;
+	msg.msg_name    = NULL;
+	msg.msg_namelen = 0;
+		
+	/* add ancillary data which is the fd and set SCM_RIGHTS */
+	cmptr->cmsg_level  = SOL_SOCKET;
+	cmptr->cmsg_type   = SCM_RIGHTS;
+	cmptr->cmsg_len    = CONTROLLEN;
+	msg.msg_control    = cmptr;
+	msg.msg_controllen = CONTROLLEN;
+	*(int32_t *)CMSG_DATA(cmptr) = subscriber_fd;
+		
+	/* 
 	 * populate, buf = 17 bytes = 
 	 * str('topic id') + 4 byte topic id + 4 byte original fd + str('\n') 
 	 */
-        buf[0]='t';buf[1]='o'; buf[2]='p';buf[3]='i'; 
+	buf[0]='t';buf[1]='o'; buf[2]='p';buf[3]='i'; 
 	buf[4]='c';buf[5]=' '; buf[6]='i';buf[7]='d';
-        *(int32_t *)(&(buf[8])) = id;
-        *(int32_t *)(&(buf[12])) = orig_s_uid;
-        buf[16] = '\n';
-        
-        /* Send buf which has ancillary data(subscriber_fd) to the client */
+	*(int32_t *)(&(buf[8])) = id;
+	*(int32_t *)(&(buf[12])) = orig_s_uid;
+	buf[16] = '\n';
+		
+	/* Send buf which has ancillary data(subscriber_fd) to the client */
 
-        /* Make the fd blocking temporarily to comply for sendmsg semantics */
-        flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
-        flags &= ~O_NONBLOCK;
-        fcntl(clients[client_i].conn_fd, F_SETFL, flags);
-        if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
-                fprintf(stderr, "fd send issue, client %d - id %d \r\n", 
+	/* Make the fd blocking temporarily to comply for sendmsg semantics */
+	flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
+	flags &= ~O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
+		fprintf(stderr, "fd send issue, client %d - id %d \r\n", 
 							client_i, id);
 	}
-        flags |= O_NONBLOCK;
-        fcntl(clients[client_i].conn_fd, F_SETFL, flags);
-        /* Now we can epoll in tBroker_init th thread again */
+	flags |= O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	/* Now we can epoll in tBroker_init th thread again */
 }
 
 /* helper function, use protocol to unsub fd in an app referenced by client_i */
@@ -290,8 +290,8 @@ static void send_topic_fd_to_clients(int32_t id, int32_t subscriber_fd, int32_t 
 	for (client_i = 0; client_i < num_clients; client_i++)
 		clients[client_i].ack = CLIENT_WAIT_FOR_ACK_SUB_FD;
 
-        for (client_i = 0; client_i < num_clients; client_i++)
-        	send_topic_fd_to_a_client(client_i, id, subscriber_fd, orig_s_uid);	
+	for (client_i = 0; client_i < num_clients; client_i++)
+		send_topic_fd_to_a_client(client_i, id, subscriber_fd, orig_s_uid);	
 }
 
 /* Send unsub request to all clients */
@@ -299,8 +299,8 @@ static void send_topic_unsub_fd_to_clients(int32_t id, int32_t orig_s_uid)
 {
 	int client_i;
 
-        for (client_i = 0; client_i < num_clients; client_i++)
-        	send_topic_unsub_fd_to_a_client(client_i, id, orig_s_uid);	
+	for (client_i = 0; client_i < num_clients; client_i++)
+		send_topic_unsub_fd_to_a_client(client_i, id, orig_s_uid);	
 }
 
 /* inform broker client that it is now ready to start pub-sub */
@@ -311,15 +311,15 @@ static void send_connected_message_to_a_client(int client_i)
 	struct msghdr   msg;
 	char            buf[32];
 	int flags = 0;
-                
-        /* pass buf as message on the socket */
-        iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
-        iov[0].iov_len  = 17; 
-        msg.msg_iov     = iov;
-        msg.msg_iovlen  = 1;
-        msg.msg_name    = NULL;
-        msg.msg_namelen = 0;
-        
+			
+	/* pass buf as message on the socket */
+	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
+	iov[0].iov_len  = 17; 
+	msg.msg_iov     = iov;
+	msg.msg_iovlen  = 1;
+	msg.msg_name    = NULL;
+	msg.msg_namelen = 0;
+		
 	/* 
 	 * populate, buf = 17 bytes = 
 	 * str('connectd') + 4 byte CLIENT_CONNECTED_RET_CODE + 4 byte dont care + str('\n') 
@@ -327,17 +327,17 @@ static void send_connected_message_to_a_client(int client_i)
 	buf[0]='c';buf[1]='o'; buf[2]='n';buf[3]='n'; 
 	buf[4]='e';buf[5]='c'; buf[6]='t';buf[7]='d';
 	*(int32_t *)(&(buf[8])) = CLIENT_CONNECTED_RET_CODE;
-        buf[16] = '\n';
-        
+	buf[16] = '\n';
+	
 	/* Make the fd blocking temporarily to comply for sendmsg semantics */
-        flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
-        flags &= ~O_NONBLOCK;
-        fcntl(clients[client_i].conn_fd, F_SETFL, flags);
-        if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
-                fprintf(stderr, "connect send issue, client %d \r\n", client_i);
+	flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
+	flags &= ~O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
+		fprintf(stderr, "connect send issue, client %d \r\n", client_i);
 	}
-        flags |= O_NONBLOCK;
-        fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	flags |= O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
 }
 
 /* tell a pub client, its sub request was successful */
@@ -379,70 +379,70 @@ static void send_all_clients_acked_message_to_a_client(int client_i)
  */
 static void sock_conn_handler(uint32_t revents, int client_i)
 {
-        int             nr = 0, r = 0, i;
-        int32_t         newfd = -1, orig_s_uid = -1, topic_id;
-        uint8_t         buf[32];
-        struct iovec    iov[1];
-        struct msghdr   msg;
-        static struct cmsghdr   *cmptr = NULL;
-        int CONTROLLEN  = CMSG_LEN(sizeof(int));
-        int fd = clients[client_i].conn_fd;
-        
-        cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
-        if (cmptr == NULL) return;
-        
+	int             nr = 0, r = 0, i;
+	int32_t         newfd = -1, orig_s_uid = -1, topic_id;
+	uint8_t         buf[32];
+	struct iovec    iov[1];
+	struct msghdr   msg;
+	static struct cmsghdr   *cmptr = NULL;
+	int CONTROLLEN  = CMSG_LEN(sizeof(int));
+	int fd = clients[client_i].conn_fd;
+		
+	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
+	if (cmptr == NULL) return;
+		
 	/* 
 	 * Make sure you collect the complete message and fd, send it to all 
 	 * clients before you return from this function
 	 */
-        for ( ; ; ) {
-                iov[0].iov_base = buf+nr;
-                iov[0].iov_len  = sizeof(buf) - nr;
-                msg.msg_iov     = iov;
-                msg.msg_iovlen  = 1;
-                msg.msg_name    = NULL;
-                msg.msg_namelen = 0;
-                msg.msg_control    = cmptr;
-                msg.msg_controllen = CONTROLLEN;
-                if ((r = recvmsg(fd, &msg, 0)) < 0) {
-                        fprintf(stderr, "recvmsg error - server \r\n");
-                }
-                else if (r == 0) {
-                        fprintf(stdout, "connection closed by client \r\n");
-                        /* remove client fd and adjust our client array */
-                        del_from_epoll(&epoll_fd, &fd);
-                        close(fd);
-                        num_clients--;
-                        for (i=client_i; i<num_clients; i++) {
-                                clients[i].conn_fd = clients[i+1].conn_fd;
+	for ( ; ; ) {
+		iov[0].iov_base = buf+nr;
+		iov[0].iov_len  = sizeof(buf) - nr;
+		msg.msg_iov     = iov;
+		msg.msg_iovlen  = 1;
+		msg.msg_name    = NULL;
+		msg.msg_namelen = 0;
+		msg.msg_control    = cmptr;
+		msg.msg_controllen = CONTROLLEN;
+		if ((r = recvmsg(fd, &msg, 0)) < 0) {
+			fprintf(stderr, "recvmsg error - server \r\n");
+		}
+		else if (r == 0) {
+			fprintf(stdout, "connection closed by client \r\n");
+			/* remove client fd and adjust our client array */
+			del_from_epoll(&epoll_fd, &fd);
+			close(fd);
+			for (i=client_i; i<num_clients; i++) {
+				clients[i].conn_fd = clients[i+1].conn_fd;
 				clients[i].ack = clients[i+1].ack;
 			}
-                        clients[i].conn_fd = -1;
+			clients[i].conn_fd = -1;
 			clients[i].ack  = -1;
-                        break;
-                }
-                if (r > 0) nr += r;
-                /* 
+			num_clients--;
+			break;
+		}
+		if (r > 0) nr += r;
+		/* 
 		 * Protocol = 
 		 * 'topic id' + 4 bytes of topic id + 4 byte original fd + '\n' 
 		 */
-                if ((nr == 17) && (buf[nr - 1] == '\n')) {
-                        /* complete message received */
-                        if (strncmp(buf, "topic id",8) == 0) {
-                                /* Grab fd and relay to all clients */
-                                topic_id = *(int32_t *)(&(buf[8]));
-                                newfd = *(int32_t *)CMSG_DATA(cmptr);
-                                orig_s_uid = *(int32_t *)(&(buf[12]));
-                                if ((all_subs) && 
-				    (all_subs_index < MAX_TOTAL_SUBS)) {
-	                        	all_subs[all_subs_index].id = topic_id;
-	                                all_subs[all_subs_index].subscriber_fd = newfd;
-	                                all_subs[all_subs_index].orig_s_uid = orig_s_uid;
+		if ((nr == 17) && (buf[nr - 1] == '\n')) {
+			/* complete message received */
+			if (strncmp(buf, "topic id",8) == 0) {
+				/* Grab fd and relay to all clients */
+				topic_id = *(int32_t *)(&(buf[8]));
+				newfd = *(int32_t *)CMSG_DATA(cmptr);
+				orig_s_uid = *(int32_t *)(&(buf[12]));
+				if ((all_subs) && 
+				(all_subs_index < MAX_TOTAL_SUBS)) {
+					all_subs[all_subs_index].id = topic_id;
+					all_subs[all_subs_index].subscriber_fd = newfd;
+					all_subs[all_subs_index].orig_s_uid = orig_s_uid;
 					all_subs_index++;
-                                }
+				}
 				send_topic_fd_to_clients(topic_id, newfd, orig_s_uid);
-                                break;
-                        } else if (strncmp(buf, "topicack",8) == 0) {
+				break;
+			} else if (strncmp(buf, "topicack",8) == 0) {
 				/* Client acked the last sub req */
 				if (*(int32_t *)(&(buf[8])) == CLIENT_ACK_SUB_FD)
 					if ((clients[client_i].ack) == 	CLIENT_WAIT_FOR_ACK_SUB_FD)
@@ -468,19 +468,19 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				send_topic_unsub_fd_to_clients(topic_id, orig_s_uid);
 				break;
 			}
-                }
-                else {
+		}
+		else {
 			if (nr < 17) {
-                        	usleep(100);
-                        	continue;
+				usleep(100);
+				continue;
 			} else {
 				fprintf(stderr, "Invalid bytes from client sock \r\n");
 				break;
 			}
-                }
-        }
-        
-        free(cmptr);
+		}
+	}
+		
+	free(cmptr);
 }
 
 
@@ -540,11 +540,11 @@ static int sock_listen_handler(uint32_t revents)
 			 * tBroker system 
 			 */
 			if (add_to_epoll(&epoll_fd, 
-					&(clients[client_i].conn_fd)) >= 0) {
-			        num_clients++;
-			        fprintf(stdout, "Added client \r\n");
+				&(clients[client_i].conn_fd)) >= 0) {
+				num_clients++;
+				fprintf(stdout, "Added client \r\n");
 			} else {
-			       fprintf(stderr, "cannot epoll client \r\n");
+				fprintf(stderr, "cannot epoll client \r\n");
 			}
 			return 0;
 		}
@@ -568,7 +568,7 @@ static void *tBroker_init_func(void *par)
 	uint64_t ev = 1;
 
 	epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-        
+		
 	/* 
 	 * This socket waits for apps to request 'accept' i.e. all apps 
 	 * wanting to connect to tBroker.
@@ -576,7 +576,7 @@ static void *tBroker_init_func(void *par)
 	if ((sock_listen = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr,"sock_listen not added \r\n");
 		write(init_efd, &ev, 8);
-	        return NULL;
+		return NULL;
 	}	
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
@@ -612,16 +612,16 @@ static void *tBroker_init_func(void *par)
 				(3 + MAX_BROKER_APPS), poll_forever);
 		if (res == -1) break;
 		for (i=0;i<res;i++) {
-		        if (events[i].data.fd == sock_listen) {
-		        	/* New connection request maybe */
-		        	sock_listen_handler(events[i].events);
-		        } else {
-		                for (s=0; s<num_clients; s++) {
-		                	if (events[i].data.fd == clients[s].conn_fd) {
+			if (events[i].data.fd == sock_listen) {
+				/* New connection request maybe */
+				sock_listen_handler(events[i].events);
+			} else {
+				for (s=0; s<num_clients; s++) {
+					if (events[i].data.fd == clients[s].conn_fd) {
 						sock_conn_handler(events[i].events, s);
 					}
-		                }   
-		        }
+				}   
+			}
 		}
 	}
 	
@@ -692,7 +692,7 @@ int tBroker_topic_create(int32_t topic, const char *name, int size, int queue_si
 	pthread_rwlockattr_t rwlock_attr;
 	pthread_rwlock_t *p_rwlock;
 	
-	if ((num_topics + 1) >= MAX_TOPICS)	{
+	if ((num_topics + 1) >= MAX_TOPICS) {
 		fprintf(stdout, "No more topics can be added \r\n");
 		return -1;
 	}
@@ -705,9 +705,7 @@ int tBroker_topic_create(int32_t topic, const char *name, int size, int queue_si
 	/* publish mutex lock needs to be accessed by multiple processes */
 	pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
 	/* topic data readwrite lock accessed by multiple processes */
-	
 	pthread_rwlockattr_init(&rwlock_attr);
-	 
 	/* Prefer writers and same thread cannot lock again before unlock */
 	pthread_rwlockattr_setkind_np(&rwlock_attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
 	/* Data is accessed across multiple processes */
@@ -782,7 +780,7 @@ topic_create_ret:
 	if (ret < 0)
 		tBroker_deinit();
 	else {
-	    /*  update shared memory of topics info and increment index */
+		/* update shared memory of topics info and increment index */
 		fd = shm_open(TBROKER_POSIX_SHM, 
 				O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
 		if (fd < 0) ;
@@ -816,56 +814,56 @@ static void send_sub_fd_ack(void);
 /* handler for any data received from the server. Add subscriber fd to  list */
 static int client_handler(uint32_t revents, int fd)
 {
-        int             nr = 0, r = 0,  ret = -1;
-        char            buf[32];
-        struct iovec    iov[1];
-        struct msghdr   msg;
-        static struct cmsghdr   *cmptr = NULL;
-        int CONTROLLEN  = CMSG_LEN(sizeof(int));
-        int32_t topic_id = -100, rcv_fd = -1;
-        int32_t orig_s_uid = -1;
-        
-        cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
-        if (cmptr == NULL) return ret;
-        
-        if (revents & EPOLLIN);
-        else return 0;
-                
-        for ( ; ; ) {
-                iov[0].iov_base = buf+nr;
-                iov[0].iov_len  = sizeof(buf) - nr;
-                msg.msg_iov     = iov;
-                msg.msg_iovlen  = 1;
-                msg.msg_name    = NULL;
-                msg.msg_namelen = 0;
-                msg.msg_control    = cmptr;
-                msg.msg_controllen = CONTROLLEN;
-                if ((r = recvmsg(fd, &msg, 0)) < 0) {
+	int             nr = 0, r = 0,  ret = -1;
+	char            buf[32];
+	struct iovec    iov[1];
+	struct msghdr   msg;
+	static struct cmsghdr   *cmptr = NULL;
+	int CONTROLLEN  = CMSG_LEN(sizeof(int));
+	int32_t topic_id = -100, rcv_fd = -1;
+	int32_t orig_s_uid = -1;
+
+	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
+	if (cmptr == NULL) return ret;
+
+	if (revents & EPOLLIN);
+	else return 0;
+		
+	for ( ; ; ) {
+		iov[0].iov_base = buf+nr;
+		iov[0].iov_len  = sizeof(buf) - nr;
+		msg.msg_iov     = iov;
+		msg.msg_iovlen  = 1;
+		msg.msg_name    = NULL;
+		msg.msg_namelen = 0;
+		msg.msg_control    = cmptr;
+		msg.msg_controllen = CONTROLLEN;
+		if ((r = recvmsg(fd, &msg, 0)) < 0) {
 			
-                        fprintf(stderr, "recvmsg error - server \r\n");
+			fprintf(stderr, "recvmsg error - server \r\n");
 			ret = 0;
 			break;
-                } else if (r == 0) {
-                        fprintf(stdout, "connection closed by server \r\n");
-                        /* remove epoll no point! */
+		} else if (r == 0) {
+			fprintf(stdout, "connection closed by server \r\n");
+			/* remove epoll no point! */
 			ret = CLIENT_DISCONNECTED_RET_CODE;
-                        break;
-                }
-                if (r > 0) nr += r;
-                /* Protocol = 'topic id' + 4 bytes of topic id + '\n' */
-                if ((nr == 17) && (buf[nr - 1] == '\n')) {
-                        /* complete message received */
-                        if (strncmp(buf, "topic id",8) == 0) {
-                                /* add this subscriber fd */
-                                topic_id = *(int32_t *)(&(buf[8]));
-                                rcv_fd = *(int32_t *)CMSG_DATA(cmptr);
-                                orig_s_uid = *(int32_t *)(&(buf[12]));
-                                if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid) < 0)
-                                	fprintf(stderr, "topic id %d not added \r\n", topic_id);
+			break;
+		}
+		if (r > 0) nr += r;
+		/* Protocol = 'topic id' + 4 bytes of topic id + '\n' */
+		if ((nr == 17) && (buf[nr - 1] == '\n')) {
+			/* complete message received */
+			if (strncmp(buf, "topic id",8) == 0) {
+				/* add this subscriber fd */
+				topic_id = *(int32_t *)(&(buf[8]));
+				rcv_fd = *(int32_t *)CMSG_DATA(cmptr);
+				orig_s_uid = *(int32_t *)(&(buf[12]));
+				if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid) < 0)
+					fprintf(stderr, "topic id %d not added \r\n", topic_id);
 				send_sub_fd_ack();
 				ret = 0;
-                                break;
-                        } else if (strncmp(buf, "connectd",8) == 0) {
+				break;
+			} else if (strncmp(buf, "connectd",8) == 0) {
 				/* Client connect request success, can now pub-sub */
 				if ((*(int32_t *)(&(buf[8]))) == CLIENT_CONNECTED_RET_CODE)
 					ret = CLIENT_CONNECTED_RET_CODE;
@@ -883,28 +881,28 @@ static int client_handler(uint32_t revents, int fd)
 				topic_id = *(int32_t *)(&(buf[8]));
 				orig_s_uid = *(int32_t *)(&(buf[12]));
 				if (__topic_unsubscribe(topic_id, orig_s_uid) < 0)
-                                	fprintf(stderr, "topic id %d not unsub \r\n", topic_id);
+					fprintf(stderr, "topic id %d not unsub \r\n", topic_id);
 				ret = 0;
 				break;
 			}
 			
-                }
-                else {
-                	/* wait if needed and collect complete message */
+		}
+		else {
+			/* wait if needed and collect complete message */
 			if (nr < 17) {
-                        	usleep(100);
-                        	continue;
+				usleep(100);
+				continue;
 			} else {
 				/* Some error in client socket, never mind */
 				ret = 0;
 				break;
 			}
-                }
-        }
-        
-        free(cmptr);
-        
-        return ret;
+		}
+	}
+
+	free(cmptr);
+
+	return ret;
 
 }
 
@@ -917,7 +915,7 @@ static int curr_sub_efd = -1;
 void *tBroker_connect_func(void *par)
 {
 	int epoll_fd_connect = -1, res = -1, poll_forever = -1, 
-				i = 0, flags = 0, quit_conn = 0, ret_code = -1;
+		i = 0, flags = 0, quit_conn = 0, ret_code = -1;
 	struct epoll_event events[2];
 	struct sockaddr_un addr;
 	struct epoll_event event;
@@ -1205,23 +1203,23 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	char            buf[32];
 	struct tBroker_subscriber_context *ctx = NULL;
 	uint64_t ev = 0;
-        
+		
 	int flags = 0;
 	int CONTROLLEN  = CMSG_LEN(sizeof(int));
 	static struct cmsghdr   *cmptr = NULL;
-        
+		
 	
 	pthread_mutex_lock(&tBroker_socket_lock);
-        
+		
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
 			break;
 	}
 	if (i==num_topics) goto topic_subscribe_ret;
-        
+		
 	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
 	if (cmptr == NULL) goto  topic_subscribe_ret;
-        
+		
 	pthread_mutex_lock(&((topics[i].shm)->pub_lock));
 
 	/* pass buf as message on the socket */
@@ -1231,18 +1229,18 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	msg.msg_iovlen  = 1;
 	msg.msg_name    = NULL;
 	msg.msg_namelen = 0;
-        
+		
 	/* add ancillary data which is the fd and set SCM_RIGHTS */
 	cmptr->cmsg_level  = SOL_SOCKET;
 	cmptr->cmsg_type   = SCM_RIGHTS;
 	cmptr->cmsg_len    = CONTROLLEN;
 	msg.msg_control    = cmptr;
 	msg.msg_controllen = CONTROLLEN;
-        
+		
 	/* get an event fd, pass it to tBroker_init socket  */
 	subscriber_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE);
 	*(int32_t *)CMSG_DATA(cmptr) = subscriber_fd;
-        
+		
 	/* 
 	 * populate, buf = 17 bytes = 
 	 * str('topic id') + 4 byte topic id + 4 byte original fd + str('\n') 
@@ -1261,15 +1259,15 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	flags = fcntl(tBroker_socket, F_GETFL, 0);
 	flags &= ~O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
-        
+		
 	sendmsg(tBroker_socket, &msg, 0);
-	        
-        //flags = fcntl(tBroker_socket, F_GETFL, 0);
+
+	//flags = fcntl(tBroker_socket, F_GETFL, 0);
 	flags |= O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
         
 	free(cmptr);
-        
+		
 	ctx = malloc(sizeof(struct tBroker_subscriber_context));
 	ctx->fd = subscriber_fd;
 	ctx->s_uid = s_uid;
@@ -1365,22 +1363,22 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	int32_t flags = 0;
 	
 	pthread_mutex_lock(&tBroker_socket_lock);
-        
+		
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
 			break;
 	}
 	
 	if (i==num_topics) goto topic_unsubscribe_ret;
-	        
+			
 	/* pass buf as message on the socket */
-	iov[0].iov_base = buf;  /* one location(buf), only one iov needed */
+	iov[0].iov_base = buf;
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
 	msg.msg_iovlen  = 1;
 	msg.msg_name    = NULL;
 	msg.msg_namelen = 0;
-        
+		
 	/* 
 	 * populate, buf = 17 bytes = 
 	 * str('topicusb') + 4 byte topic id + 4 byte original fd + 
@@ -1395,12 +1393,12 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	flags = fcntl(tBroker_socket, F_GETFL, 0);
 	flags &= ~O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
-        
+		
 	sendmsg(tBroker_socket, &msg, 0);
-	        
-      	flags |= O_NONBLOCK;
+	
+	flags |= O_NONBLOCK;
 	fcntl(tBroker_socket, F_SETFL, flags);
-        
+		
 topic_unsubscribe_ret:
 	pthread_mutex_unlock(&tBroker_socket_lock);
 	

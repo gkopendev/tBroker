@@ -9,7 +9,6 @@
  * when new data is available from publisher.
  * NICE TODO: Blocking fd for subscribe.
  * NICE TODO: Peek into something other than latest sample data.
- * NICE TODO: Add timestamps
  *  	
  * 1.One creator(setup) app creates the tBroker and all metadata for it.
  * 
@@ -60,21 +59,21 @@
  */
 
 /* config */
-#define MAX_TOPICS     		32
-#define MAX_BROKER_APPS 	32
-#define MAX_TOPIC_NAME_CHARS 	64
+#define MAX_TOPICS		32
+#define MAX_BROKER_APPS		32
+#define MAX_TOPIC_NAME_CHARS	64
 
 /* Advanced config */
 /* 
  * POSIX SHM name reserved for broker SHM, change if this name is already 
  * taken up in your filesystem(unlikely) 
  */
-#define TBROKER_POSIX_SHM   	"__tBroker_topics_info__"
+#define TBROKER_POSIX_SHM	"__tBroker_topics_info__"
 /*	
  * UNIX domain socket name reserved for broker SHM, change if this name is 
  * already taken up in your filesystem(unlikely) 
  */
-#define TBROKER_UDS_SOCKET  	"__tBroker_topics_socket__"
+#define TBROKER_UDS_SOCKET	"__tBroker_topics_socket__"
 
 /*
  * When an app gets spawned and connected to broker system, there might be
@@ -86,7 +85,7 @@
  * before any subscribe calls are made.
  * NICE TODO: GET RID OF THIS, Its trivial, just use a growing Linked list
  */
-#define MAX_TOTAL_SUBS      	1024
+#define MAX_TOTAL_SUBS		1024
 
 #include "tBroker_priv.h"
 
@@ -188,7 +187,7 @@ int tBroker_topic_read(int32_t topic, struct tBroker_subscriber_context *ctx,
 struct topic_data_section {
 	void  *buffer;   
 	uint32_t offset; 
-    	size_t len;
+	size_t len;
 };
 
 /* @desc same as tBroker_topic_read except data can be read into multiple
