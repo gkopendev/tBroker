@@ -972,6 +972,8 @@ void *tBroker_connect_func(void *par)
 		if (res == -1) break;
 		for (i=0; i<res; i++) {
 			if (events[i].data.fd == tBroker_socket) {
+				if (events[i].events & EPOLLIN);
+				else continue;
 				pthread_mutex_lock(&tBroker_socket_lock);
 				ret_code = client_handler(events[i].events, tBroker_socket);
 				if (ret_code ==  CLIENT_DISCONNECTED_RET_CODE) {
@@ -982,6 +984,7 @@ void *tBroker_connect_func(void *par)
 				}
 				else if (ret_code ==  CLIENT_CONNECTED_RET_CODE) {
 					/* connect is successful, ready to pub-sub */
+					fprintf(stdout, "ready to pub-sub \r\n");
 						write(conn_efd, &ev, 8); 
 				}
 				else if (ret_code == ALL_CLIENTS_ACKED_SUB_FD) {
@@ -1028,6 +1031,7 @@ int tBroker_connect(void)
 	}
 	close(fd);
 	
+	fprintf(stdout, "Will connect to two topics \r\n");
 	for (i=0; i<num_topics; i++) {
 		/* connect to all the SHM's, you have all topic data access */
 		fd = shm_open(topics[i].name, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -1070,6 +1074,7 @@ tBroker_connect_ret:
 		ret = pthread_create(&tBroker_connect_th, NULL, 
 					&tBroker_connect_func, NULL);
 		/* block till th is ready to start publishing */
+		fprintf(stdout, "waiting for ready to pub-sub \r\n");
 		read(conn_efd, &ev, 8); 
 		/* we are ready now */
 		fprintf(stdout,"Client ready \r\n");
