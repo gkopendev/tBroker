@@ -205,6 +205,7 @@ static void send_topic_fd_to_a_client(int client_i, int32_t id,
 	if (cmptr == NULL) return;
 		
 	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -256,6 +257,7 @@ static void send_topic_unsub_fd_to_a_client(int client_i, int32_t id,
 	int flags = 0;
 
 	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -317,6 +319,7 @@ static void send_connected_message_to_a_client(int client_i)
 	int flags = 0;
 			
 	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -338,7 +341,7 @@ static void send_connected_message_to_a_client(int client_i)
 	flags &= ~O_NONBLOCK;
 	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
 	if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
-		fprintf(stderr, "connect send issue, client %d \r\n", client_i);
+		fprintf(stderr, "connect send issue, client %d %s \r\n", client_i, strerror(errno));
 	}
 	flags |= O_NONBLOCK;
 	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
@@ -353,6 +356,7 @@ static void send_all_clients_acked_message_to_a_client(int client_i)
 	char            buf[32];
 	int 		flags = 0;
 		
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -391,25 +395,36 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 	static struct cmsghdr   *cmptr = NULL;
 	int CONTROLLEN  = CMSG_LEN(sizeof(int));
 	int fd = clients[client_i].conn_fd;
-		
+	
+	if (revents & EPOLLIN);
+	else return;
+	
 	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
 	if (cmptr == NULL) return;
-		
+	
 	/* 
 	 * Make sure you collect the complete message and fd, send it to all 
 	 * clients before you return from this function
 	 */
 	for ( ; ; ) {
-		iov[0].iov_base = buf+nr;
-		iov[0].iov_len  = sizeof(buf) - nr;
+		memset(&msg, 0, sizeof(msg));
+		//iov[0].iov_base = buf+nr;
+		//iov[0].iov_len  = sizeof(buf) - nr;
+		iov[0].iov_base = buf;
+		iov[0].iov_len  = 17;
 		msg.msg_iov     = iov;
 		msg.msg_iovlen  = 1;
 		msg.msg_name    = NULL;
 		msg.msg_namelen = 0;
 		msg.msg_control    = cmptr;
 		msg.msg_controllen = CONTROLLEN;
+		while (r < 17) {
+			r += recvmsg(fd, &msg, MSG_PEEK);
+			usleep(100);
+		}
+		printf(" we should get %d bytes \r\n", r);
 		if ((r = recvmsg(fd, &msg, 0)) < 0) {
-			fprintf(stderr, "recvmsg error - server \r\n");
+			fprintf(stderr, "recvmsg error - server - %s \r\n", strerror(errno));
 		}
 		else if (r == 0) {
 			fprintf(stdout, "connection closed by client \r\n");
@@ -433,6 +448,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 		if ((nr == 17) && (buf[nr - 1] == '\n')) {
 			/* complete message received */
 			if (strncmp(buf, "topic id",8) == 0) {
+				printf("ti \r\n");
 				/* Grab fd and relay to all clients */
 				topic_id = *(int32_t *)(&(buf[8]));
 				newfd = *(int32_t *)CMSG_DATA(cmptr);
@@ -447,6 +463,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				send_topic_fd_to_clients(topic_id, newfd, orig_s_uid);
 				break;
 			} else if (strncmp(buf, "topicack",8) == 0) {
+				printf("ta \r\n");
 				/* Client acked the last sub req */
 				if (*(int32_t *)(&(buf[8])) == CLIENT_ACK_SUB_FD)
 					if ((clients[client_i].ack) == 	CLIENT_WAIT_FOR_ACK_SUB_FD)
@@ -460,6 +477,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				
 				break;
 			} else if (strncmp(buf, "topicusb",8) == 0) {
+				printf("tu \r\n");
 				 /* Tell all clients to unsub this fd */
 				topic_id = *(int32_t *)(&(buf[8]));
 				orig_s_uid = *(int32_t *)(&(buf[12]));
@@ -696,7 +714,7 @@ int tBroker_topic_create(int32_t topic, const char *name, int size, int queue_si
 	pthread_rwlockattr_t rwlock_attr;
 	pthread_rwlock_t *p_rwlock;
 	
-	if ((num_topics + 1) >= MAX_TOPICS) {
+	if (num_topics >= MAX_TOPICS) {
 		fprintf(stdout, "No more topics can be added \r\n");
 		return -1;
 	}
@@ -839,6 +857,7 @@ static int client_handler(uint32_t revents, int fd)
 	else return 0;
 		
 	for ( ; ; ) {
+		memset(&msg, 0, sizeof(msg));
 		iov[0].iov_base = buf+nr;
 		iov[0].iov_len  = sizeof(buf) - nr;
 		msg.msg_iov     = iov;
@@ -1031,7 +1050,6 @@ int tBroker_connect(void)
 	}
 	close(fd);
 	
-	fprintf(stdout, "Will connect to two topics \r\n");
 	for (i=0; i<num_topics; i++) {
 		/* connect to all the SHM's, you have all topic data access */
 		fd = shm_open(topics[i].name, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -1237,6 +1255,7 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	pthread_mutex_lock(&((topics[i].shm)->pub_lock));
 
 	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;  /* one location(buf), only one iov needed */
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -1304,6 +1323,7 @@ static void send_sub_fd_ack(void)
 	char            buf[32];
 	int 		flags = 0;
 
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;
@@ -1386,6 +1406,7 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	if (i==num_topics) goto topic_unsubscribe_ret;
 			
 	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
 	iov[0].iov_base = buf;
 	iov[0].iov_len  = 17; 
 	msg.msg_iov     = iov;

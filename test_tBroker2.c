@@ -11,7 +11,7 @@
 
 #define BUF_SIZE    512
 #define Q_SIZE      2
-#define LOOP        1000000
+#define LOOP        100
 
 pthread_t All_topic_sub0, All_topic_sub1, All_topic_sub2, All_topic_sub3, All_topic_sub4, All_topic_sub5;
 void *All_topic_sub0_func(void *); 
@@ -47,7 +47,7 @@ void main(void)
     pthread_setschedparam(this_thread, SCHED_FIFO, &schedParam);
     mlockall(MCL_CURRENT|MCL_FUTURE);
     unsigned char dummy[8196];
-	memset(dummy, 0, 8196);
+    memset(dummy, 0, 8196);
     
     tBroker_connect();
     
@@ -57,11 +57,8 @@ void main(void)
  
     sleep(5);
     
-    /* this main thread simulates publishers */
-    /* Publish on every topic */
     while (times < LOOP) {
         sprintf(dummy_pub_data, "%d \r\n", times);
-    //    tBroker_topic_publish(TOPIC_7, dummy_pub_data);
         times++;
         usleep(5 * 1000);
     }
@@ -150,7 +147,7 @@ void *All_topic_sub0_func(void *par)
         // fd_00_1 = fopen("fd_00_1.txt", "w+");
         // fd_00_2 = fopen("fd_00_2.txt", "w+");
         // fd_00_3 = fopen("fd_00_3.txt", "w+");
-        printf("Ready \r\n");
+        
         //usleep(200);
         while(!exit_app) {
     		res = epoll_wait(epoll_fd, events, 10, poll_forever);
