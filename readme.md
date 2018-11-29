@@ -15,35 +15,35 @@ ID and name throughout the system.
 		SolutionTypes_t	SolutionType;
 
 		// position
-		FLOAT64				latrad;
-		FLOAT64				lngrad;
-		FLOAT64				alt;
+		FLOAT64	latrad;
+		FLOAT64	lngrad;
+		FLOAT64	alt;
 
 		// velocity
-		FLOAT32				vx;
-		FLOAT32				vy;
-		FLOAT32				vz;
+		FLOAT32	vx;
+		FLOAT32	vy;
+		FLOAT32	vz;
 
 		// attitude
-		FLOAT64				att_roll;
-		FLOAT64				att_pitch;
-		FLOAT64				att_heading;
+		FLOAT64	att_roll;
+		FLOAT64	att_pitch;
+		FLOAT64	att_heading;
 		
 		// error estimates
-		FLOAT32				vSigma;
-		FLOAT32				KF3DVelSTD;
-		FLOAT32				Position_Quality2D;
+		FLOAT32	vSigma;
+		FLOAT32	KF3DVelSTD;
+		FLOAT32	Position_Quality2D;
 
 		// status
-		uint32_t			KalmanStatus;
+		uint32_t KalmanStatus;
 	};
 	associated to id "1"
 	
 	So we would create a topic as 
 	topic_create(1, "GNSS", sizeof(struct GNSSData_t), 1);
 	
-	As explained further we would call topic_create for all such topics as part
-	of our init process.
+	As explained further we would call topic_create for all such topics in 
+	init process.
 
 
 Publishers publish a topic, while subscribers subscribe to a topic. 
@@ -74,23 +74,25 @@ To use it - add tBroker.c, tBroker.h and tBroker_priv.h to your build.
 Use tBroker.h as API.
 The following can be configured in the header file - 
 
-#define MAX_TOPICS					32
-#define MAX_TOPIC_NAME_CHARS		64      // string for readability
-#define MAX_BROKER_APPS				8       // How many processes will communicate with each other
-#define MAX_TOTAL_SUBS      		1024	// How many total subscribers across apps can we have
-#define TBROKER_POSIX_SHM			"__topics_info__"       // POSIX SHM name used internally, do not reuse in system
-#define TBROKER_UDS_SOCKET			"__topics_socket__"     // POSIX UDS name used internally, do not reuse in system
+#define MAX_TOPICS		32
+#define MAX_TOPIC_NAME_CHARS	64			// string for readability
+#define MAX_BROKER_APPS		8			// How many processes will communicate with each other
+#define MAX_TOTAL_SUBS		1024			// How many total subscribers across apps can we have
+#define TBROKER_POSIX_SHM	"__topics_info__"	// POSIX SHM name used internally, do not reuse in system
+#define TBROKER_UDS_SOCKET	"__topics_socket__"	// POSIX UDS name used internally, do not reuse in system
 
 To use the example , compile test_Broker.c with all other files by
 
-gcc -lrt -lpthread tBroker.c test_tBroker.c *.h -g  -o tBrok
+"gcc tBroker.c test_tBroker.c *.h -g  -o tBrok -lrt -lpthread"
 
 Compile test_tBroker2.c with all other files by
 
-gcc -lrt -lpthread tBroker.c test_tBroker2.c *.h -g  -o tBrok2
+"gcc tBroker.c test_tBroker2.c *.h -g  -o tBrok2 -lrt -lpthread" 
 
-So we have 2 apps which can communicate using tBroker. tBrok is the main creator app which creates all topics connects to broker and does pub/sub.
-tBrok2 is the other app which connects to tBroker and does pub/sub. Run tBrok and then tBrok2. You could run multiple apps of tBrok2.
+So we have 2 apps which can communicate using tBroker. 
+tBrok is the main creator app which creates all topics connects to broker and does pub/sub.
+tBrok2 is the other app which connects to tBroker and does pub/sub. 
+Run tBrok and then tBrok2. You could run multiple apps of tBrok2.
 
 ./tBrok
 

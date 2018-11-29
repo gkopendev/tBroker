@@ -197,7 +197,7 @@ static void send_topic_fd_to_a_client(int client_i, int32_t id,
 	/* server ---> client */
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	int flags = 0;
 	int CONTROLLEN  = CMSG_LEN(sizeof(int));
 	static struct cmsghdr   *cmptr = NULL;
@@ -253,7 +253,7 @@ static void send_topic_unsub_fd_to_a_client(int client_i, int32_t id,
 	/* server ---> client */
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	int flags = 0;
 
 	/* pass buf as message on the socket */
@@ -315,7 +315,7 @@ static void send_connected_message_to_a_client(int client_i)
 	/* server ---> client */
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	int flags = 0;
 			
 	/* pass buf as message on the socket */
@@ -353,7 +353,7 @@ static void send_all_clients_acked_message_to_a_client(int client_i)
 	/* server ---> client */
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	int 		flags = 0;
 		
 	memset(&msg, 0, sizeof(msg));
@@ -389,7 +389,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 {
 	int             nr = 0, r = 0, i;
 	int32_t         newfd = -1, orig_s_uid = -1, topic_id;
-	uint8_t         buf[32];
+	uint8_t         buf[32] = {0};
 	struct iovec    iov[1];
 	struct msghdr   msg;
 	static struct cmsghdr   *cmptr = NULL;
@@ -714,8 +714,9 @@ int tBroker_topic_create(int32_t topic, const char *name, int size, int queue_si
 	pthread_rwlockattr_t rwlock_attr;
 	pthread_rwlock_t *p_rwlock;
 	
-	if (num_topics >= MAX_TOPICS) {
-		fprintf(stdout, "No more topics can be added \r\n");
+	if (num_topics < MAX_TOPICS);
+	else {
+		fprintf(stdout, "s - No more topics can be added \r\n");
 		return -1;
 	}
 
@@ -842,7 +843,7 @@ static void send_sub_fd_ack(void);
 static int client_handler(uint32_t revents, int fd)
 {
 	int             nr = 0, r = 0,  ret = -1;
-	char            buf[32];
+	char            buf[32] = {0};
 	struct iovec    iov[1];
 	struct msghdr   msg;
 	static struct cmsghdr   *cmptr = NULL;
@@ -868,11 +869,11 @@ static int client_handler(uint32_t revents, int fd)
 		msg.msg_controllen = CONTROLLEN;
 		if ((r = recvmsg(fd, &msg, 0)) < 0) {
 			
-			fprintf(stderr, "recvmsg error - server \r\n");
+			fprintf(stderr, "c - recvmsg error %s \r\n", strerror(errno));
 			ret = 0;
 			break;
 		} else if (r == 0) {
-			fprintf(stdout, "connection closed by server \r\n");
+			fprintf(stdout, "c - connection closed by server \r\n");
 			/* remove epoll no point! */
 			ret = CLIENT_DISCONNECTED_RET_CODE;
 			break;
@@ -887,7 +888,7 @@ static int client_handler(uint32_t revents, int fd)
 				rcv_fd = *(int32_t *)CMSG_DATA(cmptr);
 				orig_s_uid = *(int32_t *)(&(buf[12]));
 				if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid) < 0)
-					fprintf(stderr, "topic id %d not added \r\n", topic_id);
+					fprintf(stderr, "c - topic id %d not added \r\n", topic_id);
 				send_sub_fd_ack();
 				ret = 0;
 				break;
@@ -904,12 +905,13 @@ static int client_handler(uint32_t revents, int fd)
 					ret = ALL_CLIENTS_ACKED_SUB_FD;
 				else
 					ret = 0;
+				break;
 			} else if (strncmp(buf, "topicusb",8) == 0) {
 				/* remove this subscriber fd */
 				topic_id = *(int32_t *)(&(buf[8]));
 				orig_s_uid = *(int32_t *)(&(buf[12]));
 				if (__topic_unsubscribe(topic_id, orig_s_uid) < 0)
-					fprintf(stderr, "topic id %d not unsub \r\n", topic_id);
+					fprintf(stderr, "c - topic id %d not unsub \r\n", topic_id);
 				ret = 0;
 				break;
 			}
@@ -931,7 +933,6 @@ static int client_handler(uint32_t revents, int fd)
 	free(cmptr);
 
 	return ret;
-
 }
 
 /* 
@@ -1003,8 +1004,7 @@ void *tBroker_connect_func(void *par)
 				}
 				else if (ret_code ==  CLIENT_CONNECTED_RET_CODE) {
 					/* connect is successful, ready to pub-sub */
-					fprintf(stdout, "ready to pub-sub \r\n");
-						write(conn_efd, &ev, 8); 
+					write(conn_efd, &ev, 8); 
 				}
 				else if (ret_code == ALL_CLIENTS_ACKED_SUB_FD) {
 					/* Successful sub, signal client to carry on */
@@ -1092,10 +1092,10 @@ tBroker_connect_ret:
 		ret = pthread_create(&tBroker_connect_th, NULL, 
 					&tBroker_connect_func, NULL);
 		/* block till th is ready to start publishing */
-		fprintf(stdout, "waiting for ready to pub-sub \r\n");
+		fprintf(stdout, "c - waiting for ready to pub-sub \r\n");
 		read(conn_efd, &ev, 8); 
 		/* we are ready now */
-		fprintf(stdout,"Client ready \r\n");
+		fprintf(stdout,"c - ready \r\n");
 	}
 	
 	return ret;
@@ -1232,7 +1232,7 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	int32_t 	subscriber_fd = -1, i, s_uid = 0;
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	struct tBroker_subscriber_context *ctx = NULL;
 	uint64_t ev = 0;
 		
@@ -1320,7 +1320,7 @@ static void send_sub_fd_ack(void)
 
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
+	char            buf[32] = {0};
 	int 		flags = 0;
 
 	memset(&msg, 0, sizeof(msg));
@@ -1392,8 +1392,8 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	uint32_t 	curr_head;
 	struct iovec    iov[1];
 	struct msghdr   msg;
-	char            buf[32];
-	        
+	char            buf[32] = {0};
+
 	int32_t flags = 0;
 	
 	pthread_mutex_lock(&tBroker_socket_lock);

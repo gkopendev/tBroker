@@ -13,6 +13,8 @@
 #define Q_SIZE      2
 #define LOOP        100
 
+struct timespec ts = {1, 5000000L};
+
 pthread_t All_topic_sub0, All_topic_sub1, All_topic_sub2, All_topic_sub3, All_topic_sub4, All_topic_sub5;
 void *All_topic_sub0_func(void *); 
 
@@ -60,7 +62,7 @@ void main(void)
     while (times < LOOP) {
         sprintf(dummy_pub_data, "%d \r\n", times);
         times++;
-        usleep(5 * 1000);
+        nanosleep(&ts, NULL);
     }
     
     sleep(5);
