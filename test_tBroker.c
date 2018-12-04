@@ -10,8 +10,8 @@
 #include "tBroker.h"
 
 #define BUF_SIZE    512
-#define Q_SIZE      256
-#define LOOP        256
+#define Q_SIZE      64
+#define LOOP        (1024 * 100)
 
 #define TOPIC_0 0
 #define TOPIC_1 1

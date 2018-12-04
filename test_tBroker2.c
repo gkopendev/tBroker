@@ -10,8 +10,8 @@
 #include "tBroker.h"
 
 #define BUF_SIZE    512
-#define Q_SIZE      256
-#define LOOP        256
+#define Q_SIZE      64
+#define LOOP        (1024 * 100)
 
 struct timespec ts = {0, 5000000L};
 
@@ -59,7 +59,7 @@ void main(void)
     pthread_create( &All_topic_sub0, &my_attr, &All_topic_sub0_func, NULL); exit_0_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     
     sleep(5);
-    
+
     while (times < LOOP) {
         sprintf(dummy_pub_data, "%d \r\n", times);
         times++;

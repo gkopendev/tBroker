@@ -60,7 +60,7 @@
 
 /* config */
 #define MAX_TOPICS		8
-#define MAX_BROKER_APPS		16
+#define MAX_BROKER_APPS		32
 #define MAX_TOPIC_NAME_CHARS	16
 
 /* Advanced config */
