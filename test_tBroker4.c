@@ -52,13 +52,12 @@ void main(void)
     memset(dummy, 0, 8196);
     
     tBroker_connect();
-    
-     sleep(5);
+
      
     /* This main loop simulates publisher thread, lets create subscriber threads */
     pthread_create( &All_topic_sub0, &my_attr, &All_topic_sub0_func, NULL); exit_0_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     
- 
+     sleep(5);
    
     
     while (times < LOOP) {

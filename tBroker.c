@@ -244,6 +244,65 @@ static void send_topic_fd_to_a_client(int client_i, int32_t id,
 	flags |= O_NONBLOCK;
 	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
 	/* Now we can epoll in tBroker_init th thread again */
+
+	free(cmptr);
+}
+
+static void send_topic_fd_to_a_client_noack(int client_i, int32_t id, 
+				int32_t subscriber_fd, int32_t orig_s_uid)
+{
+	/* server ---> client */
+	struct iovec    iov[1];
+	struct msghdr   msg;
+	char            buf[32] = {0};
+	int flags = 0;
+	int CONTROLLEN  = CMSG_LEN(sizeof(int));
+	static struct cmsghdr   *cmptr = NULL;
+	cmptr = (struct cmsghdr *)malloc(CONTROLLEN);
+	if (cmptr == NULL) return;
+		
+	/* pass buf as message on the socket */
+	memset(&msg, 0, sizeof(msg));
+	iov[0].iov_base = buf;  /* only 1 location(buf), only 1 iov */
+	iov[0].iov_len  = 17; 
+	msg.msg_iov     = iov;
+	msg.msg_iovlen  = 1;
+	msg.msg_name    = NULL;
+	msg.msg_namelen = 0;
+		
+	/* add ancillary data which is the fd and set SCM_RIGHTS */
+	cmptr->cmsg_level  = SOL_SOCKET;
+	cmptr->cmsg_type   = SCM_RIGHTS;
+	cmptr->cmsg_len    = CONTROLLEN;
+	msg.msg_control    = cmptr;
+	msg.msg_controllen = CONTROLLEN;
+	*(int32_t *)CMSG_DATA(cmptr) = subscriber_fd;
+		
+	/* 
+	 * populate, buf = 17 bytes = 
+	 * str('topic id') + 4 byte topic id + 4 byte original fd + str('\n') 
+	 */
+	buf[0]='n';buf[1]='o'; buf[2]='a';buf[3]='c'; 
+	buf[4]='k';buf[5]=' '; buf[6]='i';buf[7]='d';
+	*(int32_t *)(&(buf[8])) = id;
+	*(int32_t *)(&(buf[12])) = orig_s_uid;
+	buf[16] = '\n';
+		
+	/* Send buf which has ancillary data(subscriber_fd) to the client */
+
+	/* Make the fd blocking temporarily to comply for sendmsg semantics */
+	flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
+	flags &= ~O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
+		fprintf(stderr, "fd send issue, client %d - id %d \r\n", 
+							client_i, id);
+	}
+	flags |= O_NONBLOCK;
+	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+	/* Now we can epoll in tBroker_init th thread again */
+
+	free(cmptr);
 }
 
 /* helper function, use protocol to unsub fd in an app referenced by client_i */
@@ -534,15 +593,16 @@ static int sock_listen_handler(uint32_t revents)
 			 * If we have already received topic_subscribe requests 
 			 * before this app connected, inform.
 			 */
-			 if (all_subs_index > 0) {
-			 	for (i=0; i<all_subs_index; i++) {
-			 		usleep(200);
-			 		send_topic_fd_to_a_client(client_i, 
+			if (all_subs_index > 0) {
+				for (i=0; i<all_subs_index; i++) {
+					//usleep(200);
+					fprintf(stdout, "bag-%d/%d \r\n", i+1, all_subs_index);
+					send_topic_fd_to_a_client_noack(client_i, 
 						all_subs[i].id, 
 						all_subs[i].subscriber_fd, 
 						all_subs[i].orig_s_uid);
-			 	}
-			 }
+				}
+			}
 			/*
 			 * This makes sure client has an updated list of subs,
 			 * so now it can start publishing
@@ -929,6 +989,16 @@ static int client_handler(uint32_t revents, int fd)
 				send_sub_fd_ack();
 				ret = 0;
 				break;
+			} else if (strncmp(buf, "noack id",8) == 0) {
+				/* add this subscriber fd */
+				topic_id = *(int32_t *)(&(buf[8]));
+				rcv_fd = *(int32_t *)CMSG_DATA(cmptr);
+				orig_s_uid = *(int32_t *)(&(buf[12]));
+				if (__topic_subscribe(topic_id, rcv_fd, orig_s_uid) < 0)
+					fprintf(stderr, "c - topic id %d not added \r\n", topic_id);
+				ret = 0;
+				break;
+			
 			} else if (strncmp(buf, "connectd",8) == 0) {
 				/* Client connect request success, can now pub-sub */
 				if ((*(int32_t *)(&(buf[8]))) == CLIENT_CONNECTED_RET_CODE) {
