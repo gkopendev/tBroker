@@ -44,43 +44,6 @@ void *All_topic_pub_func1(void *par)
     sleep(5);
 }
 
-void *All_topic_pub_func2(void *par)
-{
-    int times = 0;
-    uint8_t dummy_pub_data[BUF_SIZE];
-    
-    sleep(10);
-     printf("S - 1 \r\n");
-    while (times < LOOP) {
-        sprintf(dummy_pub_data, "%d \r\n", (times+200));
-        sprintf(dummy_pub_data+200, "%d \r\n", (times+200));
-        sprintf(dummy_pub_data+500, "%d \r\n", (times+200));
-        tBroker_topic_publish(TOPIC_1, dummy_pub_data);
-        times++;
-        nanosleep(&ts, NULL);
-    }
-     sleep(5);
-}
-
-void *All_topic_pub_func3(void *par)
-{
-    int times = 0;
-    uint8_t dummy_pub_data[BUF_SIZE];
-    
-    sleep(10);
-    printf("S - 2 \r\n");
-    while (times < LOOP) {
-        sprintf(dummy_pub_data, "%d \r\n", (times+300));
-        sprintf(dummy_pub_data+200, "%d \r\n", (times+300));
-        sprintf(dummy_pub_data+500, "%d \r\n", (times+300));
-        tBroker_topic_publish(TOPIC_2, dummy_pub_data);
-        times++;
-        nanosleep(&ts, NULL);
-    }
-     sleep(5);
-}
-
-
 void main(void)
 {
     int times=0;
@@ -99,7 +62,7 @@ void main(void)
     unsigned char dummy[8196];
     memset(dummy, 0, 8196);
 
-    /* Init the broker */
+    /* Init the broker 
     tBroker_init();
     
     if (tBroker_topic_create(TOPIC_0, "First topic", BUF_SIZE, Q_SIZE) >= 0);
@@ -109,27 +72,25 @@ void main(void)
     if (tBroker_topic_create(TOPIC_4, "fifth topic", BUF_SIZE, Q_SIZE) >= 0);
     if (tBroker_topic_create(TOPIC_5, "sixth topic", BUF_SIZE, Q_SIZE) >= 0);
     if (tBroker_topic_create(TOPIC_6, "seventh topic", BUF_SIZE, Q_SIZE) >= 0);
-    if (tBroker_topic_create(TOPIC_7, "eigth topic", BUF_SIZE, Q_SIZE) >= 0);
+    if (tBroker_topic_create(TOPIC_7, "eigth topic", BUF_SIZE, Q_SIZE) >= 0);*/
 
     tBroker_connect();
     
     //sleep(5);
     
-    //pthread_create(&All_topic_pub1, &my_attr, &All_topic_pub_func1, NULL);
-    // pthread_create(&All_topic_pub2, &my_attr, &All_topic_pub_func2, NULL);
-     pthread_create(&All_topic_pub3, &my_attr, &All_topic_pub_func3, NULL);
- 
+    pthread_create(&All_topic_pub1, &my_attr, &All_topic_pub_func1, NULL);
+   
     sleep(10);
     
     /* this main thread simulates publishers */
     /* Publish on every topic */
-     printf("S - 3 \r\n");
+     printf("S - 1 \r\n");
     while (times < LOOP) {
 
-        sprintf(dummy_pub_data, "%d \r\n", (times+400));
-        sprintf(dummy_pub_data+200, "%d \r\n", (times+400));
-        sprintf(dummy_pub_data+500, "%d \r\n", (times+400));
-        tBroker_topic_publish(TOPIC_3, dummy_pub_data);
+        sprintf(dummy_pub_data, "%d \r\n", (times+200));
+        sprintf(dummy_pub_data+200, "%d \r\n", (times+200));
+        sprintf(dummy_pub_data+500, "%d \r\n", (times+200));
+        tBroker_topic_publish(TOPIC_1, dummy_pub_data);
         times++;
         nanosleep(&ts, NULL);
     }
@@ -139,5 +100,5 @@ void main(void)
     exit_app = 1;
     
     tBroker_disconnect();
-    tBroker_deinit();
+   
 }

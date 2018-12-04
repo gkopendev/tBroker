@@ -127,7 +127,7 @@ struct sock_conn {
 	int ack;
 };
 static struct sock_conn clients[MAX_BROKER_APPS];
-static int num_clients = 0;
+static volatile int num_clients = 0;
 static int epoll_fd = -1;
 static pthread_t tBroker_init_th = 0;
 struct tBroker_subscriber_metadata {
@@ -334,6 +334,7 @@ static void send_connected_message_to_a_client(int client_i)
 	buf[0]='c';buf[1]='o'; buf[2]='n';buf[3]='n'; 
 	buf[4]='e';buf[5]='c'; buf[6]='t';buf[7]='d';
 	*(int32_t *)(&(buf[8])) = CLIENT_CONNECTED_RET_CODE;
+	*(int32_t *)(&(buf[12])) = client_i;
 	buf[16] = '\n';
 	
 	/* Make the fd blocking temporarily to comply for sendmsg semantics */
@@ -343,6 +344,8 @@ static void send_connected_message_to_a_client(int client_i)
 	if (sendmsg(clients[client_i].conn_fd, &msg, 0) != 17) {
 		fprintf(stderr, "connect send issue, client %d %s \r\n", client_i, strerror(errno));
 	}
+	else 
+		fprintf(stdout, "Sent connectd to client %d \r\n", client_i);
 	flags |= O_NONBLOCK;
 	fcntl(clients[client_i].conn_fd, F_SETFL, flags);
 }
@@ -422,7 +425,6 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 			r += recvmsg(fd, &msg, MSG_PEEK);
 			usleep(100);
 		}
-		printf(" we should get %d bytes \r\n", r);
 		if ((r = recvmsg(fd, &msg, 0)) < 0) {
 			fprintf(stderr, "recvmsg error - server - %s \r\n", strerror(errno));
 		}
@@ -448,7 +450,6 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 		if ((nr == 17) && (buf[nr - 1] == '\n')) {
 			/* complete message received */
 			if (strncmp(buf, "topic id",8) == 0) {
-				printf("ti \r\n");
 				/* Grab fd and relay to all clients */
 				topic_id = *(int32_t *)(&(buf[8]));
 				newfd = *(int32_t *)CMSG_DATA(cmptr);
@@ -463,7 +464,6 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				send_topic_fd_to_clients(topic_id, newfd, orig_s_uid);
 				break;
 			} else if (strncmp(buf, "topicack",8) == 0) {
-				printf("ta \r\n");
 				/* Client acked the last sub req */
 				if (*(int32_t *)(&(buf[8])) == CLIENT_ACK_SUB_FD)
 					if ((clients[client_i].ack) == 	CLIENT_WAIT_FOR_ACK_SUB_FD)
@@ -477,8 +477,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				
 				break;
 			} else if (strncmp(buf, "topicusb",8) == 0) {
-				printf("tu \r\n");
-				 /* Tell all clients to unsub this fd */
+				/* Tell all clients to unsub this fd */
 				topic_id = *(int32_t *)(&(buf[8]));
 				orig_s_uid = *(int32_t *)(&(buf[12]));
 				for (i=0; i<all_subs_index; i++)
@@ -552,9 +551,9 @@ static int sock_listen_handler(uint32_t revents)
 
 			/* Add client to our tBroker_init thread epoll */
 			/* fd is non blocking, as epoll is used */
-			flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
-			flags |= O_NONBLOCK;
-			fcntl(clients[client_i].conn_fd, F_SETFL, flags);
+			// flags = fcntl(clients[client_i].conn_fd, F_GETFL, 0);
+			// flags |= O_NONBLOCK;
+			// fcntl(clients[client_i].conn_fd, F_SETFL, flags);
 			
 			/* 
 			 * A message containing fd is received on this 
@@ -564,7 +563,7 @@ static int sock_listen_handler(uint32_t revents)
 			if (add_to_epoll(&epoll_fd, 
 				&(clients[client_i].conn_fd)) >= 0) {
 				num_clients++;
-				fprintf(stdout, "Added client \r\n");
+				fprintf(stdout, "Added client %d\r\n", client_i);
 			} else {
 				fprintf(stderr, "cannot epoll client \r\n");
 			}
@@ -630,8 +629,7 @@ static void *tBroker_init_func(void *par)
 	write(init_efd, &ev, 8);
 	
 	while(tBroker_quit == 0) {
-		res = epoll_wait(epoll_fd, events, 
-				(3 + MAX_BROKER_APPS), poll_forever);
+		res = epoll_wait(epoll_fd, events, (3 + MAX_BROKER_APPS), poll_forever);
 		if (res == -1) break;
 		for (i=0;i<res;i++) {
 			if (events[i].data.fd == sock_listen) {
@@ -829,6 +827,45 @@ topic_create_ret:
 	return ret;
 }
 
+/* Creator app deinit's to free up resources for tBroker */
+int tBroker_deinit(void)
+{
+	int i, q, fd, sz;
+	size_t offset_lock;
+	pthread_rwlock_t *p_rwlock;
+	
+	for (i=0; i<num_topics; i++) {
+		if ((topics[i].shm) && (topics[i].shm != MAP_FAILED)) {
+			pthread_mutex_destroy(&((topics[i].shm)->pub_lock));
+			offset_lock = sizeof(pthread_mutex_t) + sizeof(uint32_t);
+			for (q=0; q < topics[i].queue_size; q++) {
+				p_rwlock = (pthread_rwlock_t *)
+					((void *)topics[i].shm + offset_lock);
+				pthread_rwlock_destroy(p_rwlock);
+				offset_lock += 
+				(topics[i].size + sizeof(pthread_rwlock_t));
+			}
+			munmap(topics[i].shm, topics[i].shm_sz);
+			topics[i].shm = NULL;
+			shm_unlink(topics[i].name);
+		}
+	}
+
+	fd = shm_open(TBROKER_POSIX_SHM, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
+	sz = sizeof(struct topics_info);
+	struct topics_info *info_shm = (struct topics_info *)
+		 mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	pthread_mutex_destroy(&(info_shm->sub_id_count_lock));
+	close(fd);
+	munmap((void*)info_shm, sz);
+	
+	shm_unlink(TBROKER_POSIX_SHM);
+	num_topics = 0;
+	pthread_cancel(tBroker_init_th);
+	pthread_join(tBroker_init_th, NULL);
+	if (all_subs) free(all_subs);
+}
+
 
 /*****************************************************************************/
 /****************************** TBROKER CLIENTS ******************************/
@@ -894,8 +931,10 @@ static int client_handler(uint32_t revents, int fd)
 				break;
 			} else if (strncmp(buf, "connectd",8) == 0) {
 				/* Client connect request success, can now pub-sub */
-				if ((*(int32_t *)(&(buf[8]))) == CLIENT_CONNECTED_RET_CODE)
+				if ((*(int32_t *)(&(buf[8]))) == CLIENT_CONNECTED_RET_CODE) {
+					fprintf(stdout, "c - connected at %d \r\n", *(int32_t *)(&(buf[12])));
 					ret = CLIENT_CONNECTED_RET_CODE;
+				}
 				else
 					ret = 0;
 				break;
@@ -1000,6 +1039,8 @@ void *tBroker_connect_func(void *par)
 					epoll_ctl (epoll_fd_connect, 
 						EPOLL_CTL_DEL, 
 						tBroker_socket, NULL);
+					/* In case connection was never complete */
+					write(conn_efd, &ev, 8);
 					quit_conn = 1;
 				}
 				else if (ret_code ==  CLIENT_CONNECTED_RET_CODE) {
@@ -1092,10 +1133,8 @@ tBroker_connect_ret:
 		ret = pthread_create(&tBroker_connect_th, NULL, 
 					&tBroker_connect_func, NULL);
 		/* block till th is ready to start publishing */
-		fprintf(stdout, "c - waiting for ready to pub-sub \r\n");
 		read(conn_efd, &ev, 8); 
-		/* we are ready now */
-		fprintf(stdout,"c - ready \r\n");
+		/* we are ready now or just quit */
 	}
 	
 	return ret;
@@ -1134,45 +1173,6 @@ int tBroker_disconnect(void)
 	pthread_join(tBroker_connect_th, NULL);
 
 	munmap(info_main_shm, sizeof(struct topics_info));
-}
-
-/* Creator app deinit's to free up resources for tBroker */
-int tBroker_deinit(void)
-{
-	int i, q, fd, sz;
-	size_t offset_lock;
-	pthread_rwlock_t *p_rwlock;
-	
-	for (i=0; i<num_topics; i++) {
-		if ((topics[i].shm) && (topics[i].shm != MAP_FAILED)) {
-			pthread_mutex_destroy(&((topics[i].shm)->pub_lock));
-			offset_lock = sizeof(pthread_mutex_t) + sizeof(uint32_t);
-			for (q=0; q < topics[i].queue_size; q++) {
-				p_rwlock = (pthread_rwlock_t *)
-					((void *)topics[i].shm + offset_lock);
-				pthread_rwlock_destroy(p_rwlock);
-				offset_lock += 
-				(topics[i].size + sizeof(pthread_rwlock_t));
-			}
-			munmap(topics[i].shm, topics[i].shm_sz);
-			topics[i].shm = NULL;
-			shm_unlink(topics[i].name);
-		}
-	}
-
-	fd = shm_open(TBROKER_POSIX_SHM, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
-	sz = sizeof(struct topics_info);
-	struct topics_info *info_shm = (struct topics_info *)
-		 mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	pthread_mutex_destroy(&(info_shm->sub_id_count_lock));
-	close(fd);
-	munmap((void*)info_shm, sz);
-	
-	shm_unlink(TBROKER_POSIX_SHM);
-	num_topics = 0;
-	pthread_cancel(tBroker_init_th);
-	pthread_join(tBroker_init_th, NULL);
-	if (all_subs) free(all_subs);
 }
 
 /* helper function, adds fd to topic subscriber linked list */
@@ -1611,10 +1611,8 @@ static int32_t _topic_read(int32_t i, struct tBroker_subscriber_context *ctx,
 			if (num_sections > 0) {
 				offset_lock += (idx * (topics[i].size + 
 						sizeof(pthread_rwlock_t)));
-				p_rwlock = (pthread_rwlock_t *)
-					((void *)topics[i].shm + offset_lock);
-				buff = ((void *)topics[i].shm + offset_lock + 
-					sizeof(pthread_rwlock_t));
+				p_rwlock = (pthread_rwlock_t *)((void *)topics[i].shm + offset_lock);
+				buff = ((void *)topics[i].shm + offset_lock + sizeof(pthread_rwlock_t));
 				pthread_rwlock_rdlock(p_rwlock);
 				for (j=0; j<num_sections; j++) {
 					memcpy(sections[j].buffer, (buff + sections[j].offset), sections[j].len);

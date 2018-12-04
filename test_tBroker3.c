@@ -53,13 +53,13 @@ void main(void)
     
     tBroker_connect();
     
-    sleep(5);
-    
+     sleep(5);
+     
     /* This main loop simulates publisher thread, lets create subscriber threads */
     pthread_create( &All_topic_sub0, &my_attr, &All_topic_sub0_func, NULL); exit_0_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     
  
-    
+   
     
     while (times < LOOP) {
         sprintf(dummy_pub_data, "%d \r\n", times);
@@ -109,41 +109,41 @@ void *All_topic_sub0_func(void *par)
     epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     
     if (epoll_fd > 0) {
-        /* First subscriber to TOPIC_0 */
-        fd_00_ctx = tBroker_topic_subscribe(TOPIC_0); 
-        if (fd_00_ctx == NULL) {
-            printf("fd_00 err \r\n");
-        } else {
-            fd_00 = tBroker_get_subscriber_fd(fd_00_ctx);
-            add_to_epoll(&epoll_fd, &fd_00);
-        }
-
-        /* First subscriber to TOPIC_1 */
-        fd_01_ctx = tBroker_topic_subscribe(TOPIC_1); 
-        if (fd_01_ctx == NULL) {
-            printf("fd_01 err \r\n");
-        } else {
-            fd_01 = tBroker_get_subscriber_fd(fd_01_ctx);
-            add_to_epoll(&epoll_fd, &fd_01);
-        }
-
-        // /* First subscriber to TOPIC_2 */
-        // fd_02_ctx = tBroker_topic_subscribe(TOPIC_2); 
-        // if (fd_02_ctx == NULL) {
-        //     printf("fd_02 err \r\n");
+        // /* First subscriber to TOPIC_0 */
+        // fd_00_ctx = tBroker_topic_subscribe(TOPIC_0); 
+        // if (fd_00_ctx == NULL) {
+        //     printf("fd_00 err \r\n");
         // } else {
-        //     fd_02 = tBroker_get_subscriber_fd(fd_02_ctx);
-        //     add_to_epoll(&epoll_fd, &fd_02);
-        // }  
+        //     fd_00 = tBroker_get_subscriber_fd(fd_00_ctx);
+        //     add_to_epoll(&epoll_fd, &fd_00);
+        // }
+
+        // /* First subscriber to TOPIC_1 */
+        // fd_01_ctx = tBroker_topic_subscribe(TOPIC_1); 
+        // if (fd_01_ctx == NULL) {
+        //     printf("fd_01 err \r\n");
+        // } else {
+        //     fd_01 = tBroker_get_subscriber_fd(fd_01_ctx);
+        //     add_to_epoll(&epoll_fd, &fd_01);
+        // }
+
+        /* First subscriber to TOPIC_2 */
+        fd_02_ctx = tBroker_topic_subscribe(TOPIC_2); 
+        if (fd_02_ctx == NULL) {
+            printf("fd_02 err \r\n");
+        } else {
+            fd_02 = tBroker_get_subscriber_fd(fd_02_ctx);
+            add_to_epoll(&epoll_fd, &fd_02);
+        }  
         
-        // /* First subscriber to TOPIC_3 */
-        // fd_03_ctx = tBroker_topic_subscribe(TOPIC_3); 
-        // if (fd_03_ctx == NULL) {
-        //     printf("fd_03 err \r\n");
-        // } else {
-        //     fd_03 = tBroker_get_subscriber_fd(fd_03_ctx);
-        //     add_to_epoll(&epoll_fd, &fd_03);
-        // }  
+        /* First subscriber to TOPIC_3 */
+        fd_03_ctx = tBroker_topic_subscribe(TOPIC_3); 
+        if (fd_03_ctx == NULL) {
+            printf("fd_03 err \r\n");
+        } else {
+            fd_03 = tBroker_get_subscriber_fd(fd_03_ctx);
+            add_to_epoll(&epoll_fd, &fd_03);
+        }  
         
         add_to_epoll(&epoll_fd, &exit_0_fd);
         
@@ -233,7 +233,7 @@ void *All_topic_sub0_func(void *par)
     		}
         }
         
-        printf("2. fd_00_count = %d, fd_01_count = %d, fd_02_count = %d, fd_03_count = %d \r\n", fd_00_count, fd_01_count, fd_02_count, fd_03_count);
+        printf("3. fd_00_count = %d, fd_01_count = %d, fd_02_count = %d, fd_03_count = %d \r\n", fd_00_count, fd_01_count, fd_02_count, fd_03_count);
   
         if (fd_00 > 0) close(fd_00); 
         if (fd_01 > 0) close(fd_01); 
