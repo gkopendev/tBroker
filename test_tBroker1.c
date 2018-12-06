@@ -94,9 +94,8 @@ void main(void)
         times++;
         nanosleep(&ts, NULL);
     }
-    tBroker_disconnect();
-
-    sleep(5);
+     sleep(5);
+      tBroker_disconnect();
     
     exit_app = 1;
     

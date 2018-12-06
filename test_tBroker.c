@@ -134,10 +134,12 @@ void main(void)
         nanosleep(&ts, NULL);
     }
     
-    tBroker_disconnect();
     sleep(5);
     
+    tBroker_disconnect();
     exit_app = 1;
     
+     sleep(5); // collect all disconnects
+
     tBroker_deinit();
 }

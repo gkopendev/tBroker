@@ -116,7 +116,7 @@ static int tBroker_socket = -1;
 /* sync receive & send data to creator app */
 static pthread_mutex_t tBroker_socket_lock; 
 static pthread_t tBroker_connect_th = 0;
-static int tBroker_disconnect_now = 0;
+static volatile int tBroker_disconnect_now = 0;
 struct topics_info *info_main_shm = NULL; /* ref to main topic "metadata" SHM */
 
 /* Other data for creator app (which calls tBroker_init and tBroker_create) */
@@ -518,8 +518,7 @@ static void sock_conn_handler(uint32_t revents, int client_i)
 				topic_id = *(int32_t *)(&(buf[8]));
 				newfd = *(int32_t *)CMSG_DATA(cmptr);
 				orig_s_uid = *(int32_t *)(&(buf[12]));
-				if ((all_subs) && 
-				(all_subs_index < MAX_TOTAL_SUBS)) {
+				if ((all_subs) && (all_subs_index < MAX_TOTAL_SUBS)) {
 					all_subs[all_subs_index].id = topic_id;
 					all_subs[all_subs_index].subscriber_fd = newfd;
 					all_subs[all_subs_index].orig_s_uid = orig_s_uid;
@@ -895,6 +894,7 @@ topic_create_ret:
 	return ret;
 }
 
+
 /* Creator app deinit's to free up resources for tBroker */
 int tBroker_deinit(void)
 {
@@ -931,7 +931,7 @@ int tBroker_deinit(void)
 	shm_unlink(TBROKER_POSIX_SHM);
 	num_topics = 0;
 	uint64_t ev_quit = 1; write(init_quit_efd, &ev_quit, 8);
-	pthread_cancel(tBroker_init_th);
+	//pthread_cancel(tBroker_init_th);
 	pthread_join(tBroker_init_th, NULL);
 	if (all_subs) free(all_subs);
 }
@@ -1262,7 +1262,7 @@ int tBroker_disconnect(void)
 	tBroker_disconnect_now = 1;
 	/* Close connect thread cleanly, well force it later */
 	uint64_t ev_quit = 1; write(conn_quit_efd, &ev_quit, 8);
-	pthread_cancel(tBroker_connect_th);
+	//pthread_cancel(tBroker_connect_th);
 	pthread_join(tBroker_connect_th, NULL);
 	munmap(info_main_shm, sizeof(struct topics_info));
 }
@@ -1333,6 +1333,8 @@ struct tBroker_subscriber_context* tBroker_topic_subscribe(int32_t topic)
 	static struct cmsghdr   *cmptr = NULL;
 		
 	
+	if (tBroker_disconnect_now != 0) return NULL;
+
 	pthread_mutex_lock(&tBroker_socket_lock);
 		
 	for (i=0; i<num_topics; i++) {
@@ -1488,6 +1490,8 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 
 	int32_t flags = 0;
 	
+	if (tBroker_disconnect_now != 0) return -1;
+
 	pthread_mutex_lock(&tBroker_socket_lock);
 		
 	for (i=0; i<num_topics; i++) {
@@ -1554,6 +1558,8 @@ int tBroker_topic_publish(int32_t topic, void *buffer)
 	void *buff;
 	pthread_rwlock_t *p_rwlock;
 	
+	if (tBroker_disconnect_now != 0) return -1;
+
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id) break;
 	}
@@ -1612,6 +1618,8 @@ int tBroker_topic_peek(int32_t topic, struct tBroker_subscriber_context *ctx)
 	struct tBroker_subscriber *sub;
 	uint32_t head;
 	
+	if (tBroker_disconnect_now != 0) return -1;
+
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
 			break;
@@ -1635,7 +1643,7 @@ int tBroker_topic_peek(int32_t topic, struct tBroker_subscriber_context *ctx)
 		}
 	}
 	
-	return ret; 
+	return ret;
 }
 
 /* 
@@ -1729,6 +1737,9 @@ int tBroker_topic_read_sections(int32_t topic,
 {
 	int i, j = 0;
 	int ret = -1;
+	
+	if (tBroker_disconnect_now != 0) return -1;
+
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
 			break;
@@ -1750,12 +1761,13 @@ int tBroker_topic_read_sections(int32_t topic,
 	return ret;
 }
 
-int tBroker_topic_read(int32_t topic, 
-			struct tBroker_subscriber_context *ctx, void *buffer)
+int tBroker_topic_read(int32_t topic, struct tBroker_subscriber_context *ctx, void *buffer)
 {
 	int ret = -1;
 	int i;
 	struct topic_data_section section;
+
+	if (tBroker_disconnect_now != 0) return -1;
 
 	for (i=0; i<num_topics; i++) {
 		if (topic == topics[i].id)
