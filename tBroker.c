@@ -1492,6 +1492,8 @@ int32_t tBroker_topic_unsubscribe(int32_t topic, struct tBroker_subscriber_conte
 	
 	if (tBroker_disconnect_now != 0) return -1;
 
+	if (!ctx) return -1;
+
 	pthread_mutex_lock(&tBroker_socket_lock);
 		
 	for (i=0; i<num_topics; i++) {
@@ -1544,7 +1546,10 @@ int32_t tBroker_get_subscriber_fd(struct tBroker_subscriber_context *ctx)
 
 void tBroker_subscriber_context_free(struct tBroker_subscriber_context *ctx)
 {
-	if (ctx != NULL) free(ctx);
+	if (ctx) {
+		if (ctx->fd > 0) close(ctx->fd);
+		free(ctx);
+	}
 }
 
 /* Notify all subscribers across apps about new data */
