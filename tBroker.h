@@ -107,7 +107,7 @@ int tBroker_init(void);
  * @arg queue_size: Number of buffers for topic data in memory, 
  * 		1 if no buffering needed. Should be in powers of 2
  * 		(2,4,8,16 ...)
- * @return: 0 if successful, -1 when unsuccessful
+ * @return: 0 if successful, negative when unsuccessful
  * @note : Do all topic_create in creator app, before any connect is 
  * attempted. 
  */
@@ -151,7 +151,7 @@ void tBroker_subscriber_context_free(struct tBroker_subscriber_context *ctx);
  * @arg topic: which topic to publish
  * @arg buffer: data to be published. It is pointer to data of memory 
  * associated with the topic
- * @return: 0 if successful, -1 if unsuccessful
+ * @return: 0 if successful, negative if unsuccessful
  */
 int tBroker_topic_publish(int32_t topic, void *buffer);
 
@@ -173,7 +173,7 @@ int tBroker_topic_peek(int32_t topic, struct tBroker_subscriber_context *ctx);
  * @arg topic: which topic to read data from
  * @arg ctx: returned by previous  topic_subscribe call
  * @arg buffer: dest memory for topic data (allocated by caller)
- * @return: Number of bytes read and -1 if no new data available
+ * @return: Number of bytes read and negative if no new data available
  */
 int tBroker_topic_read(int32_t topic, struct tBroker_subscriber_context *ctx, 
 							void *buffer);
